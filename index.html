@@ -83,44 +83,59 @@
       </section>
     </main>
     <script>
-      const BACKGROUND_PALETTE = [
-        "#ff1f6a",
-        "#8acd00",
-        "#caa7ff",
-        "#1b1b1b",
-        "#fff1ff",
-        "#ffd86b",
-      ];
-      const WORDS = ["live", "right now", "twitch", "tiktok", "watch"];
       const CYCLE_MS = 600;
+      const CUT_FLASH_MS = 110;
       const stage = document.querySelector(".stage");
+      const card = document.querySelector(".card");
       const avatarMedia = document.querySelector(".avatar-media");
       const avatarWord = document.querySelector(".avatar-word");
       let index = 0;
       let cycleTimer = null;
-      const sequence = ["image", ...WORDS];
+      const sequence = [
+        { type: "image", bg: "#8acd00" },
+        { type: "word", text: "live", bg: "#2750ff", color: "#ff2b2b" },
+        { type: "word", text: "right now", bg: "#ff2b2b", color: "#b7ff00" },
+        { type: "word", text: "twitch", bg: "#9146ff", color: "#ffffff" },
+        {
+          type: "word",
+          text: "tiktok",
+          bg: "#000000",
+          color: "#ffffff",
+        },
+        { type: "word", text: "watch", bg: "#000000", color: "#ffffff" },
+      ];
 
       const stepCycle = () => {
-        const color = BACKGROUND_PALETTE[index % BACKGROUND_PALETTE.length];
-        if (stage) stage.style.setProperty("--stage-color", color);
-
         const step = sequence[index % sequence.length];
+        if (stage) stage.style.setProperty("--stage-color", "#000000");
+        if (card) card.classList.add("live-mode");
         if (avatarMedia && avatarWord) {
           avatarMedia.classList.remove("show");
           avatarWord.classList.remove("show");
-          if (step === "image") {
-            avatarMedia.classList.add("show");
-          } else {
-            avatarWord.textContent = step;
-            avatarWord.classList.add("show");
-          }
         }
+
+        setTimeout(() => {
+          const bg = step.bg || "#8acd00";
+          if (stage) stage.style.setProperty("--stage-color", bg);
+          if (avatarMedia && avatarWord) {
+            avatarWord.className = "avatar-word";
+            avatarWord.style.color = step.color || "#000";
+            avatarWord.style.background = bg;
+            if (step.type === "image") {
+              avatarMedia.classList.add("show");
+            } else {
+              avatarWord.textContent = step.text;
+              avatarWord.classList.add("show");
+            }
+          }
+        }, CUT_FLASH_MS);
 
         index += 1;
       };
 
       const startCycle = () => {
         if (cycleTimer) return;
+        if (card) card.classList.add("live-mode");
         stepCycle();
         cycleTimer = setInterval(stepCycle, CYCLE_MS);
       };
@@ -131,16 +146,22 @@
           cycleTimer = null;
         }
         if (stage) stage.style.setProperty("--stage-color", "#8acd00");
+        if (card) card.classList.remove("live-mode");
         if (avatarMedia && avatarWord) {
           avatarMedia.classList.add("show");
+          avatarWord.className = "avatar-word";
           avatarWord.classList.remove("show");
-          avatarWord.textContent = "ian";
+          avatarWord.textContent = "";
+          avatarWord.style.color = "#000";
+          avatarWord.style.background = "var(--hot-red)";
         }
       };
 
       const twitchRow = document.querySelector("[data-twitch]");
       const params = new URLSearchParams(window.location.search);
       const testLive = params.get("test_live") === "1";
+      const forceLive = params.get("force_live") === "1";
+      if (forceLive && card) card.classList.add("live-mode");
 
       const checkTwitchLive = async () => {
         if (!twitchRow) return;

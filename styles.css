@@ -4,7 +4,7 @@
   --lime: #8acd00;
   --deep-blue: #1615d4;
   --electric-red: #ee1c12;
-  --hot-red: #ff2b1a;
+  --hot-red: #c4142d;
   --ink: #050505;
   --neon-yellow: #d6ff2d;
   --shadow: rgba(9, 9, 9, 0.25);
@@ -46,12 +46,17 @@ body {
 
 .card {
   width: min(440px, 100%);
-  background: rgba(138, 205, 0, 0.92);
+  background: var(--lime);
   border-radius: 28px;
   padding: 40px 22px 30px;
   box-shadow: 0 24px 48px rgba(12, 12, 12, 0.2);
   position: relative;
   overflow: hidden;
+}
+
+.card.live-mode {
+  background: transparent;
+  transition: none;
 }
 
 .hero {
@@ -142,6 +147,10 @@ body {
   border-radius: 16px;
   box-shadow: 0 10px 20px var(--shadow);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card.live-mode .link {
+  background: var(--stage-color, #8acd00);
 }
 
 .link:hover,
@@ -272,15 +281,20 @@ body {
 }
 
 .avatar-word {
-  font-size: 34px;
+  font-size: 26px;
   font-weight: 700;
   color: #000;
-  text-transform: lowercase;
+  text-transform: uppercase;
   letter-spacing: 0.02em;
   background: var(--hot-red);
   line-height: 1;
   text-align: center;
-  padding: 0 8px;
+  padding: 0 14px;
+}
+
+.card.live-mode .avatar,
+.card.live-mode .avatar-word {
+  background: var(--stage-color, #8acd00);
 }
 
 .avatar-media.show,
