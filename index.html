@@ -11,7 +11,13 @@
       <section class="card">
         <header class="hero">
           <div class="avatar" role="img" aria-label="Ian">ian</div>
-          <p class="handle">@ianlrsn <span class="live-badge" aria-live="polite">live</span></p>
+          <p class="handle">
+            @ianlrsn
+            <span class="live-badge" aria-live="polite">
+              <span class="live-dot" aria-hidden="true"></span>
+              live
+            </span>
+          </p>
           <div class="socials" aria-label="social links">
             <a class="social" href="https://www.twitch.tv/ianlrsn" aria-label="Twitch">
               <img src="icons/twitch.svg" alt="" aria-hidden="true" />
@@ -81,6 +87,7 @@
     <script>
       const twitchRow = document.querySelector("[data-twitch]");
       const liveBadge = document.querySelector(".live-badge");
+      const liveDot = document.querySelector(".live-badge .live-dot");
       const params = new URLSearchParams(window.location.search);
       const testLive = params.get("test_live") === "1";
 
@@ -89,6 +96,7 @@
         if (testLive) {
           twitchRow.classList.add("is-live");
           liveBadge.classList.add("show");
+          liveDot?.classList.add("show");
           return;
         }
         try {
@@ -98,9 +106,11 @@
           const isLive = Boolean(data?.live);
           twitchRow.classList.toggle("is-live", isLive);
           liveBadge.classList.toggle("show", isLive);
+          liveDot?.classList.toggle("show", isLive);
         } catch (error) {
           twitchRow.classList.remove("is-live");
           liveBadge.classList.remove("show");
+          liveDot?.classList.remove("show");
         }
       };
 
