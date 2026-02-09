@@ -17,10 +17,24 @@
 body {
   margin: 0;
   font-family: "Space Grotesk", sans-serif;
-  background: linear-gradient(120deg, #f7f7f7, #ececec, #f4f4f4, #e7e7e7);
-  background-size: 300% 300%;
-  animation: ambient-sweep 18s ease-in-out infinite;
+  background: transparent;
+  
+  
   color: var(--ink);
+}
+
+
+.stage {
+  position: fixed;
+  inset: 0;
+  background: var(--stage-color, #8acd00);
+  transition: none;
+  z-index: 0;
+}
+
+.page {
+  position: relative;
+  z-index: 1;
 }
 
 .page {
@@ -32,7 +46,7 @@ body {
 
 .card {
   width: min(440px, 100%);
-  background: var(--lime);
+  background: rgba(138, 205, 0, 0.92);
   border-radius: 28px;
   padding: 40px 22px 30px;
   box-shadow: 0 24px 48px rgba(12, 12, 12, 0.2);
@@ -51,16 +65,20 @@ body {
   height: 120px;
   margin: 0 auto 12px;
   border-radius: 50%;
-  background: url("assets/avatar.jpeg") center/140% no-repeat;
-  color: var(--ink);
+  background: var(--hot-red);
   display: grid;
   place-items: center;
-  font-size: 42px;
-  font-weight: 600;
-  text-transform: lowercase;
-  letter-spacing: 0.5px;
-  text-indent: -9999px;
   overflow: hidden;
+  position: relative;
+}
+
+.avatar::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 3px dotted #000;
+  pointer-events: none;
 }
 
 .handle {
@@ -68,59 +86,6 @@ body {
   font-size: 22px;
   color: var(--ink);
   font-weight: 700;
-}
-
-.live-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--hot-red);
-  opacity: 0;
-  transform: translateY(-1px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.live-badge .live-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--hot-red);
-  opacity: 0;
-  transform: scale(0.8);
-  box-shadow: 0 0 6px rgba(255, 43, 26, 0.6);
-}
-
-.live-badge .live-dot.show {
-  opacity: 1;
-  animation: live-flash 1.2s ease-in-out infinite;
-}
-
-.live-badge.show {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-@keyframes live-flash {
-  0% {
-    opacity: 0.35;
-    transform: scale(0.7);
-    box-shadow: 0 0 4px rgba(255, 43, 26, 0.4);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.2);
-    box-shadow: 0 0 12px rgba(255, 43, 26, 0.9);
-  }
-  100% {
-    opacity: 0.35;
-    transform: scale(0.7);
-    box-shadow: 0 0 4px rgba(255, 43, 26, 0.4);
-  }
 }
 
 .socials {
@@ -232,7 +197,6 @@ body {
 
 @media (max-width: 480px) {
   body {
-    background: var(--lime);
     animation: none;
   }
 
@@ -286,4 +250,40 @@ body {
     transform: scale(0.9);
     opacity: 0.7;
   }
+}
+
+
+.avatar {
+  position: relative;
+}
+
+.avatar-media,
+.avatar-word {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: none;
+}
+
+.avatar-media {
+  background: url("assets/avatar.jpeg") center/140% no-repeat;
+}
+
+.avatar-word {
+  font-size: 34px;
+  font-weight: 700;
+  color: #000;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  background: var(--hot-red);
+  line-height: 1;
+  text-align: center;
+  padding: 0 8px;
+}
+
+.avatar-media.show,
+.avatar-word.show {
+  opacity: 1;
 }

@@ -7,17 +7,15 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <div class="stage" aria-hidden="true"></div>
     <main class="page">
       <section class="card">
         <header class="hero">
-          <div class="avatar" role="img" aria-label="Ian">ian</div>
-          <p class="handle">
-            @ianlrsn
-            <span class="live-badge" aria-live="polite">
-              <span class="live-dot" aria-hidden="true"></span>
-              live
-            </span>
-          </p>
+          <div class="avatar" role="img" aria-label="Ian">
+            <div class="avatar-media" aria-hidden="true"></div>
+            <div class="avatar-word" aria-hidden="true">ian</div>
+          </div>
+          <p class="handle">@ianlrsn</p>
           <div class="socials" aria-label="social links">
             <a class="social" href="https://www.twitch.tv/ianlrsn" aria-label="Twitch">
               <img src="icons/twitch.svg" alt="" aria-hidden="true" />
@@ -85,18 +83,70 @@
       </section>
     </main>
     <script>
+      const BACKGROUND_PALETTE = [
+        "#ff1f6a",
+        "#8acd00",
+        "#caa7ff",
+        "#1b1b1b",
+        "#fff1ff",
+        "#ffd86b",
+      ];
+      const WORDS = ["live", "right now", "twitch", "tiktok", "watch"];
+      const CYCLE_MS = 600;
+      const stage = document.querySelector(".stage");
+      const avatarMedia = document.querySelector(".avatar-media");
+      const avatarWord = document.querySelector(".avatar-word");
+      let index = 0;
+      let cycleTimer = null;
+      const sequence = ["image", ...WORDS];
+
+      const stepCycle = () => {
+        const color = BACKGROUND_PALETTE[index % BACKGROUND_PALETTE.length];
+        if (stage) stage.style.setProperty("--stage-color", color);
+
+        const step = sequence[index % sequence.length];
+        if (avatarMedia && avatarWord) {
+          avatarMedia.classList.remove("show");
+          avatarWord.classList.remove("show");
+          if (step === "image") {
+            avatarMedia.classList.add("show");
+          } else {
+            avatarWord.textContent = step;
+            avatarWord.classList.add("show");
+          }
+        }
+
+        index += 1;
+      };
+
+      const startCycle = () => {
+        if (cycleTimer) return;
+        stepCycle();
+        cycleTimer = setInterval(stepCycle, CYCLE_MS);
+      };
+
+      const stopCycle = () => {
+        if (cycleTimer) {
+          clearInterval(cycleTimer);
+          cycleTimer = null;
+        }
+        if (stage) stage.style.setProperty("--stage-color", "#8acd00");
+        if (avatarMedia && avatarWord) {
+          avatarMedia.classList.add("show");
+          avatarWord.classList.remove("show");
+          avatarWord.textContent = "ian";
+        }
+      };
+
       const twitchRow = document.querySelector("[data-twitch]");
-      const liveBadge = document.querySelector(".live-badge");
-      const liveDot = document.querySelector(".live-badge .live-dot");
       const params = new URLSearchParams(window.location.search);
       const testLive = params.get("test_live") === "1";
 
       const checkTwitchLive = async () => {
-        if (!twitchRow || !liveBadge) return;
+        if (!twitchRow) return;
         if (testLive) {
           twitchRow.classList.add("is-live");
-          liveBadge.classList.add("show");
-          liveDot?.classList.add("show");
+          startCycle();
           return;
         }
         try {
@@ -105,17 +155,21 @@
           const data = await response.json();
           const isLive = Boolean(data?.live);
           twitchRow.classList.toggle("is-live", isLive);
-          liveBadge.classList.toggle("show", isLive);
-          liveDot?.classList.toggle("show", isLive);
+          if (isLive) {
+            startCycle();
+          } else {
+            stopCycle();
+          }
         } catch (error) {
           twitchRow.classList.remove("is-live");
-          liveBadge.classList.remove("show");
-          liveDot?.classList.remove("show");
+          stopCycle();
         }
       };
 
+      stopCycle();
       checkTwitchLive();
       setInterval(checkTwitchLive, 60000);
     </script>
+
   </body>
 </html>
