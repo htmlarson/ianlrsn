@@ -112,6 +112,12 @@ body {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+.card.live-mode .social,
+.card.live-mode .handle,
+.card.live-mode .dots {
+  color: var(--live-text-color, #ffffff);
+}
+
 .social svg {
   width: 28px;
   height: 28px;
