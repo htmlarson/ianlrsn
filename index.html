@@ -53,6 +53,7 @@
             </span>
             <span class="label">Twitch @ianlrsn</span>
             <span class="dots">&#8942;</span>
+            <span class="twitch-player" aria-hidden="true"></span>
           </a>
           <a class="link" href="https://tiktok.com/@ianlrsn">
             <span class="thumb">
@@ -126,28 +127,26 @@
           avatarWord.classList.remove("show");
         }
 
-        setTimeout(() => {
-          const bg = step.bg || "#8acd00";
-          const textColor = step.color || "#000000";
-          if (stage) stage.style.setProperty("--stage-color", bg);
-          document.documentElement.style.setProperty("--live-bg-color", bg);
-          document.documentElement.style.setProperty("--live-text-color", textColor);
-          document.documentElement.style.setProperty(
-            "--live-icon-filter",
-            textColor === "#ffffff" ? "brightness(0) invert(1)" : "none"
-          );
-          if (avatarMedia && avatarWord) {
-            avatarWord.className = "avatar-word";
-            avatarWord.style.color = textColor;
-            avatarWord.style.background = bg;
-            if (step.type === "image") {
-              avatarMedia.classList.add("show");
-            } else {
-              avatarWord.textContent = step.text;
-              avatarWord.classList.add("show");
-            }
+        const bg = step.bg || "#8acd00";
+        const textColor = step.color || "#000000";
+        if (stage) stage.style.setProperty("--stage-color", bg);
+        document.documentElement.style.setProperty("--live-bg-color", bg);
+        document.documentElement.style.setProperty("--live-text-color", textColor);
+        document.documentElement.style.setProperty(
+          "--live-icon-filter",
+          textColor === "#ffffff" ? "brightness(0) invert(1)" : "none"
+        );
+        if (avatarMedia && avatarWord) {
+          avatarWord.className = "avatar-word";
+          avatarWord.style.color = textColor;
+          avatarWord.style.background = bg;
+          if (step.type === "image") {
+            avatarMedia.classList.add("show");
+          } else {
+            avatarWord.textContent = step.text;
+            avatarWord.classList.add("show");
           }
-        }, CUT_FLASH_MS);
+        }
 
         index += 1;
       };
@@ -180,15 +179,37 @@
       };
 
       const twitchRow = document.querySelector("[data-twitch]");
+      const twitchPlayer = twitchRow?.querySelector(".twitch-player");
       const params = new URLSearchParams(window.location.search);
       const testLive = params.get("test_live") === "1";
       const forceLive = params.get("force_live") === "1";
       if (forceLive && card) card.classList.add("live-mode");
 
+      const ensureTwitchEmbed = () => {
+        if (!twitchPlayer) return;
+        if (twitchPlayer.querySelector("iframe")) return;
+        const host = window.location.hostname || "ianlrsn.com";
+        const parents = host === "ianlrsn.com" ? ["ianlrsn.com"] : [host, "ianlrsn.com"];
+        const parentParams = parents.map((parent) => `parent=${encodeURIComponent(parent)}`).join("&");
+        const iframe = document.createElement("iframe");
+        iframe.src = `https://player.twitch.tv/?channel=ianlrsn&${parentParams}&muted=true&autoplay=false`;
+        iframe.title = "Ianlrsn Twitch live stream";
+        iframe.allowFullscreen = true;
+        iframe.loading = "lazy";
+        iframe.setAttribute("scrolling", "no");
+        twitchPlayer.appendChild(iframe);
+      };
+
+      const clearTwitchEmbed = () => {
+        if (!twitchPlayer) return;
+        twitchPlayer.innerHTML = "";
+      };
+
       const checkTwitchLive = async () => {
         if (!twitchRow) return;
         if (testLive) {
           twitchRow.classList.add("is-live");
+          ensureTwitchEmbed();
           startCycle();
           return;
         }
@@ -199,12 +220,15 @@
           const isLive = Boolean(data?.live);
           twitchRow.classList.toggle("is-live", isLive);
           if (isLive) {
+            ensureTwitchEmbed();
             startCycle();
           } else {
+            clearTwitchEmbed();
             stopCycle();
           }
         } catch (error) {
           twitchRow.classList.remove("is-live");
+          clearTwitchEmbed();
           stopCycle();
         }
       };
