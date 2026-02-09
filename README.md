@@ -13,7 +13,7 @@ Files:
 - `index.html`
 - `styles.css`
 - `icons/`
-- `functions/twitch-live.js`
+- `functions/api/twitch-live.js`
 
 Cloudflare Pages setup:
 - Bind a KV namespace as `live_kv`.
