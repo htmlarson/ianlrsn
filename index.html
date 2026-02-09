@@ -144,6 +144,9 @@
             avatarMedia.classList.add("show");
           } else {
             avatarWord.textContent = step.text;
+            const textLength = step.text?.length || 0;
+            const fontSize = textLength >= 9 ? "15px" : textLength >= 7 ? "17px" : "20px";
+            avatarWord.style.fontSize = fontSize;
             avatarWord.classList.add("show");
           }
         }
