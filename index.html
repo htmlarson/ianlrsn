@@ -11,7 +11,7 @@
       <section class="card">
         <header class="hero">
           <div class="avatar" role="img" aria-label="Ian">ian</div>
-          <p class="handle">@ianlrsn</p>
+          <p class="handle">@ianlrsn <span class="live-badge" aria-live="polite">live</span></p>
           <div class="socials" aria-label="social links">
             <a class="social" href="https://www.twitch.tv/ianlrsn" aria-label="Twitch">
               <img src="icons/twitch.svg" alt="" aria-hidden="true" />
@@ -37,11 +37,7 @@
               <img src="icons/twitch.svg" alt="" aria-hidden="true" />
             </span>
             <span class="label">Twitch @ianlrsn</span>
-            <span class="status">
-              <span class="live-dot" aria-hidden="true"></span>
-              <span class="live-text" aria-hidden="true">LIVE!</span>
-              <span class="dots">&#8942;</span>
-            </span>
+            <span class="dots">&#8942;</span>
           </a>
           <a class="link" href="https://tiktok.com/@ianlrsn">
             <span class="thumb">
@@ -84,17 +80,15 @@
     </main>
     <script>
       const twitchRow = document.querySelector("[data-twitch]");
-      const liveDot = twitchRow?.querySelector(".live-dot");
-      const liveText = twitchRow?.querySelector(".live-text");
+      const liveBadge = document.querySelector(".live-badge");
       const params = new URLSearchParams(window.location.search);
       const testLive = params.get("test_live") === "1";
 
       const checkTwitchLive = async () => {
-        if (!twitchRow || !liveDot) return;
+        if (!twitchRow || !liveBadge) return;
         if (testLive) {
           twitchRow.classList.add("is-live");
-          liveDot.classList.add("show");
-          liveText?.classList.add("show");
+          liveBadge.classList.add("show");
           return;
         }
         try {
@@ -103,12 +97,10 @@
           const data = await response.json();
           const isLive = Boolean(data?.live);
           twitchRow.classList.toggle("is-live", isLive);
-          liveDot.classList.toggle("show", isLive);
-          liveText?.classList.toggle("show", isLive);
+          liveBadge.classList.toggle("show", isLive);
         } catch (error) {
           twitchRow.classList.remove("is-live");
-          liveDot.classList.remove("show");
-          liveText?.classList.remove("show");
+          liveBadge.classList.remove("show");
         }
       };
 
