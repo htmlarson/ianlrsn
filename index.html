@@ -84,9 +84,16 @@
     <script>
       const twitchRow = document.querySelector("[data-twitch]");
       const liveDot = twitchRow?.querySelector(".live-dot");
+      const params = new URLSearchParams(window.location.search);
+      const testLive = params.get("test_live") === "1";
 
       const checkTwitchLive = async () => {
         if (!twitchRow || !liveDot) return;
+        if (testLive) {
+          twitchRow.classList.add("is-live");
+          liveDot.classList.add("show");
+          return;
+        }
         try {
           const response = await fetch("/api/twitch-live", { cache: "no-store" });
           if (!response.ok) throw new Error("status fetch failed");
