@@ -1,10 +1,10 @@
 @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap");
 
 :root {
-  --lime: #86d10a;
+  --lime: #8acd00;
   --deep-blue: #1615d4;
   --electric-red: #ee1c12;
-  --hot-red: #ff2b1a;
+  --hot-red: #c4142d;
   --ink: #050505;
   --neon-yellow: #d6ff2d;
   --shadow: rgba(9, 9, 9, 0.25);
@@ -17,10 +17,24 @@
 body {
   margin: 0;
   font-family: "Space Grotesk", sans-serif;
-  background: linear-gradient(120deg, #f7f7f7, #ececec, #f4f4f4, #e7e7e7);
-  background-size: 300% 300%;
-  animation: ambient-sweep 18s ease-in-out infinite;
+  background: transparent;
+  
+  
   color: var(--ink);
+}
+
+
+.stage {
+  position: fixed;
+  inset: 0;
+  background: var(--stage-color, #8acd00);
+  transition: none;
+  z-index: 0;
+}
+
+.page {
+  position: relative;
+  z-index: 1;
 }
 
 .page {
@@ -40,15 +54,9 @@ body {
   overflow: hidden;
 }
 
-.card::before {
-  content: "";
-  position: absolute;
-  inset: -120px 40% auto auto;
-  width: 220px;
-  height: 220px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.14);
-  animation: drift 12s ease-in-out infinite;
+.card.live-mode {
+  background: transparent;
+  transition: none;
 }
 
 .hero {
@@ -62,20 +70,26 @@ body {
   height: 120px;
   margin: 0 auto 12px;
   border-radius: 50%;
-  background: var(--electric-red);
-  color: var(--ink);
+  background: var(--hot-red);
   display: grid;
   place-items: center;
-  font-size: 42px;
-  font-weight: 600;
-  text-transform: lowercase;
-  letter-spacing: 0.5px;
+  overflow: hidden;
+  position: relative;
+}
+
+.avatar::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 3px dotted #000;
+  pointer-events: none;
 }
 
 .handle {
   margin: 0 0 18px;
   font-size: 22px;
-  color: var(--hot-red);
+  color: var(--ink);
   font-weight: 700;
 }
 
@@ -96,6 +110,12 @@ body {
   text-decoration: none;
   border-radius: 50%;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card.live-mode .social,
+.card.live-mode .handle,
+.card.live-mode .dots {
+  color: var(--live-text-color, #ffffff);
 }
 
 .social svg {
@@ -123,7 +143,7 @@ body {
 
 .link {
   display: grid;
-  grid-template-columns: 48px 1fr 24px;
+  grid-template-columns: 48px 1fr auto;
   align-items: center;
   gap: 16px;
   background: var(--deep-blue);
@@ -133,6 +153,11 @@ body {
   border-radius: 16px;
   box-shadow: 0 10px 20px var(--shadow);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card.live-mode .link {
+  background: var(--live-bg-color, #8acd00);
+  color: var(--live-text-color, #d6ff2d);
 }
 
 .link:hover,
@@ -185,9 +210,18 @@ body {
   opacity: 0.8;
 }
 
+
 @media (max-width: 480px) {
+  body {
+    animation: none;
+  }
+
   .card {
-    padding: 32px 18px 26px;
+    width: 100%;
+    min-height: 100vh;
+    border-radius: 0;
+    padding: 32px 18px 36px;
+    box-shadow: none;
   }
 
   .label {
@@ -217,4 +251,60 @@ body {
   100% {
     transform: translate3d(0, 0, 0) scale(1);
   }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+}
+
+
+.avatar {
+  position: relative;
+}
+
+.avatar-media,
+.avatar-word {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: none;
+}
+
+.avatar-media {
+  background: url("assets/avatar.jpeg") center/140% no-repeat;
+}
+
+.avatar-word {
+  font-size: 26px;
+  font-weight: 700;
+  color: #000;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  background: var(--hot-red);
+  line-height: 1;
+  text-align: center;
+  padding: 0 14px;
+}
+
+.card.live-mode .avatar,
+.card.live-mode .avatar-word {
+  background: var(--live-bg-color, #8acd00);
+}
+
+.avatar-media.show,
+.avatar-word.show {
+  opacity: 1;
 }
