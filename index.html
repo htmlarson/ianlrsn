@@ -10,7 +10,7 @@
     <main class="page">
       <section class="card">
         <header class="hero">
-          <div class="avatar">ian</div>
+          <div class="avatar" role="img" aria-label="Ian">ian</div>
           <p class="handle">@ianlrsn</p>
           <div class="socials" aria-label="social links">
             <a class="social" href="https://www.twitch.tv/ianlrsn" aria-label="Twitch">
@@ -39,14 +39,15 @@
             <span class="label">Twitch @ianlrsn</span>
             <span class="status">
               <span class="live-dot" aria-hidden="true"></span>
+              <span class="live-text" aria-hidden="true">LIVE!</span>
               <span class="dots">&#8942;</span>
             </span>
           </a>
-          <a class="link" href="https://youtube.com/@ianlrsn?si=PY8eBxGL5ZDL8J9h">
+          <a class="link" href="https://tiktok.com/@ianlrsn">
             <span class="thumb">
-              <img src="icons/youtube.svg" alt="" aria-hidden="true" />
+              <img src="icons/tiktok.svg" alt="" aria-hidden="true" />
             </span>
-            <span class="label">YouTube @ianlrsn</span>
+            <span class="label">TikTok @ianlrsn</span>
             <span class="dots">&#8942;</span>
           </a>
           <a class="link" href="https://discord.gg/kdjjzfKE">
@@ -56,18 +57,18 @@
             <span class="label">Discord @ianlrsn</span>
             <span class="dots">&#8942;</span>
           </a>
-          <a class="link" href="https://tiktok.com/@ianlrsn">
-            <span class="thumb">
-              <img src="icons/tiktok.svg" alt="" aria-hidden="true" />
-            </span>
-            <span class="label">TikTok @ianlrsn</span>
-            <span class="dots">&#8942;</span>
-          </a>
           <a class="link" href="https://www.instagram.com/ianlrsn">
             <span class="thumb">
               <img src="icons/instagram.svg" alt="" aria-hidden="true" />
             </span>
             <span class="label">Instagram @ianlrsn</span>
+            <span class="dots">&#8942;</span>
+          </a>
+          <a class="link" href="https://youtube.com/@ianlrsn?si=PY8eBxGL5ZDL8J9h">
+            <span class="thumb">
+              <img src="icons/youtube.svg" alt="" aria-hidden="true" />
+            </span>
+            <span class="label">YouTube @ianlrsn</span>
             <span class="dots">&#8942;</span>
           </a>
           <a class="link" href="#">
@@ -84,6 +85,7 @@
     <script>
       const twitchRow = document.querySelector("[data-twitch]");
       const liveDot = twitchRow?.querySelector(".live-dot");
+      const liveText = twitchRow?.querySelector(".live-text");
       const params = new URLSearchParams(window.location.search);
       const testLive = params.get("test_live") === "1";
 
@@ -92,6 +94,7 @@
         if (testLive) {
           twitchRow.classList.add("is-live");
           liveDot.classList.add("show");
+          liveText?.classList.add("show");
           return;
         }
         try {
@@ -101,9 +104,11 @@
           const isLive = Boolean(data?.live);
           twitchRow.classList.toggle("is-live", isLive);
           liveDot.classList.toggle("show", isLive);
+          liveText?.classList.toggle("show", isLive);
         } catch (error) {
           twitchRow.classList.remove("is-live");
           liveDot.classList.remove("show");
+          liveText?.classList.remove("show");
         }
       };
 

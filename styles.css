@@ -62,7 +62,7 @@ body {
   height: 120px;
   margin: 0 auto 12px;
   border-radius: 50%;
-  background: var(--electric-red);
+  background: url("assets/avatar.jpeg") center/cover no-repeat;
   color: var(--ink);
   display: grid;
   place-items: center;
@@ -70,6 +70,8 @@ body {
   font-weight: 600;
   text-transform: lowercase;
   letter-spacing: 0.5px;
+  text-indent: -9999px;
+  overflow: hidden;
 }
 
 .handle {
@@ -203,24 +205,42 @@ body {
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
+.live-text {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--hot-red);
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.live-text.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .live-dot.show {
   opacity: 1;
   transform: scale(1);
-  animation: live-pulse 1.4s ease-in-out infinite;
+  animation: live-blink 1.2s ease-in-out infinite;
 }
 
-@keyframes live-pulse {
+@keyframes live-blink {
   0% {
-    transform: scale(1);
-    box-shadow: 0 0 10px rgba(255, 43, 26, 0.6);
+    transform: scale(0.9);
+    opacity: 0.4;
+    box-shadow: 0 0 6px rgba(255, 43, 26, 0.4);
   }
   50% {
-    transform: scale(1.12);
-    box-shadow: 0 0 16px rgba(255, 43, 26, 0.85);
+    transform: scale(1.35);
+    opacity: 1;
+    box-shadow: 0 0 20px rgba(255, 43, 26, 0.95);
   }
   100% {
-    transform: scale(1);
-    box-shadow: 0 0 10px rgba(255, 43, 26, 0.6);
+    transform: scale(0.9);
+    opacity: 0.4;
+    box-shadow: 0 0 6px rgba(255, 43, 26, 0.4);
   }
 }
 
