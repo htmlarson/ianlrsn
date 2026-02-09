@@ -150,7 +150,8 @@ body {
 }
 
 .card.live-mode .link {
-  background: var(--stage-color, #8acd00);
+  background: var(--live-bg-color, #8acd00);
+  color: var(--live-text-color, #d6ff2d);
 }
 
 .link:hover,
@@ -294,7 +295,7 @@ body {
 
 .card.live-mode .avatar,
 .card.live-mode .avatar-word {
-  background: var(--stage-color, #8acd00);
+  background: var(--live-bg-color, #8acd00);
 }
 
 .avatar-media.show,

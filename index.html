@@ -116,10 +116,13 @@
 
         setTimeout(() => {
           const bg = step.bg || "#8acd00";
+          const textColor = step.color || "#000000";
           if (stage) stage.style.setProperty("--stage-color", bg);
+          document.documentElement.style.setProperty("--live-bg-color", bg);
+          document.documentElement.style.setProperty("--live-text-color", textColor);
           if (avatarMedia && avatarWord) {
             avatarWord.className = "avatar-word";
-            avatarWord.style.color = step.color || "#000";
+            avatarWord.style.color = textColor;
             avatarWord.style.background = bg;
             if (step.type === "image") {
               avatarMedia.classList.add("show");
@@ -155,6 +158,8 @@
           avatarWord.style.color = "#000";
           avatarWord.style.background = "var(--hot-red)";
         }
+        document.documentElement.style.setProperty("--live-bg-color", "#8acd00");
+        document.documentElement.style.setProperty("--live-text-color", "#d6ff2d");
       };
 
       const twitchRow = document.querySelector("[data-twitch]");
