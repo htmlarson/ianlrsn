@@ -14,33 +14,33 @@
           <p class="handle">@ianlrsn</p>
           <div class="socials" aria-label="social links">
             <a class="social" href="https://www.twitch.tv/ianlrsn" aria-label="Twitch">
-              <svg viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M3.857 0 1 2.857v10.286h3.429V16l2.857-2.857H9.57L14.714 8V0zm9.714 7.429-2.285 2.285H9l-2 2v-2H4.429V1.143h9.142z"/>
-                <path d="M11.857 3.143h-1.143V6.57h1.143zm-3.143 0H7.571V6.57h1.143z"/>
-              </svg>
+              <img src="icons/twitch.svg" alt="" aria-hidden="true" />
             </a>
             <a class="social" href="https://tiktok.com/@ianlrsn" aria-label="TikTok">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3c.5 2 2.2 3.5 4 4v4c-1.6 0-3.2-.5-4.5-1.4v6.1a5.7 5.7 0 1 1-4.5-5.6v3a2.7 2.7 0 1 0 1.8 2.6V3h3.2z" /></svg>
+              <img src="icons/tiktok.svg" alt="" aria-hidden="true" />
             </a>
             <a class="social" href="https://discord.gg/kdjjzfKE" aria-label="Discord">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5.5A15 15 0 0 0 15.5 4l-.2.3c1.5.4 2.8 1 4 2a13 13 0 0 0-12.6 0c1.2-1 2.5-1.6 4-2l-.2-.3A15 15 0 0 0 5 5.5C2.7 9 2 12.5 2.2 16c1.6 1.2 3.3 2 5.2 2.5l.6-1c-.8-.3-1.6-.7-2.3-1.1l.4-.3c2.8 1.3 6.1 1.3 8.9 0l.4.3c-.7.5-1.5.8-2.3 1.1l.6 1c1.9-.5 3.6-1.3 5.2-2.5.3-3.5-.4-7-2.7-10.5zM9 14a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm6 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z" /></svg>
+              <img src="icons/discord.svg" alt="" aria-hidden="true" />
             </a>
             <a class="social" href="https://www.instagram.com/ianlrsn" aria-label="Instagram">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4zm5 4.5A4.5 4.5 0 1 0 16.5 12 4.5 4.5 0 0 0 12 7.5zm7.2-1.4a1.1 1.1 0 1 1-1.1-1.1 1.1 1.1 0 0 1 1.1 1.1z" /></svg>
+              <img src="icons/instagram.svg" alt="" aria-hidden="true" />
             </a>
             <a class="social" href="https://youtube.com/@ianlrsn?si=PY8eBxGL5ZDL8J9h" aria-label="YouTube">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.6 7.2a3 3 0 0 0-2.1-2.1C17.7 4.5 12 4.5 12 4.5s-5.7 0-7.5.6A3 3 0 0 0 2.4 7.2 31 31 0 0 0 2 12a31 31 0 0 0 .4 4.8 3 3 0 0 0 2.1 2.1c1.8.6 7.5.6 7.5.6s5.7 0 7.5-.6a3 3 0 0 0 2.1-2.1A31 31 0 0 0 22 12a31 31 0 0 0-.4-4.8zM10 15.5V8.5l6 3.5-6 3.5z" /></svg>
+              <img src="icons/youtube.svg" alt="" aria-hidden="true" />
             </a>
             <!-- Cash App icon removed; restore when donations link is ready. -->
           </div>
         </header>
         <section class="links">
-          <a class="link" href="https://www.twitch.tv/ianlrsn">
+          <a class="link" href="https://www.twitch.tv/ianlrsn" data-twitch>
             <span class="thumb">
               <img src="icons/twitch.svg" alt="" aria-hidden="true" />
             </span>
             <span class="label">Twitch @ianlrsn</span>
-            <span class="dots">&#8942;</span>
+            <span class="status">
+              <span class="live-dot" aria-hidden="true"></span>
+              <span class="dots">&#8942;</span>
+            </span>
           </a>
           <a class="link" href="https://youtube.com/@ianlrsn?si=PY8eBxGL5ZDL8J9h">
             <span class="thumb">
@@ -81,5 +81,27 @@
         </section>
       </section>
     </main>
+    <script>
+      const twitchRow = document.querySelector("[data-twitch]");
+      const liveDot = twitchRow?.querySelector(".live-dot");
+
+      const checkTwitchLive = async () => {
+        if (!twitchRow || !liveDot) return;
+        try {
+          const response = await fetch("/api/twitch-live", { cache: "no-store" });
+          if (!response.ok) throw new Error("status fetch failed");
+          const data = await response.json();
+          const isLive = Boolean(data?.live);
+          twitchRow.classList.toggle("is-live", isLive);
+          liveDot.classList.toggle("show", isLive);
+        } catch (error) {
+          twitchRow.classList.remove("is-live");
+          liveDot.classList.remove("show");
+        }
+      };
+
+      checkTwitchLive();
+      setInterval(checkTwitchLive, 60000);
+    </script>
   </body>
 </html>

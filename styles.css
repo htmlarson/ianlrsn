@@ -1,7 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap");
 
 :root {
-  --lime: #86d10a;
+  --lime: #8acd00;
   --deep-blue: #1615d4;
   --electric-red: #ee1c12;
   --hot-red: #ff2b1a;
@@ -123,7 +123,7 @@ body {
 
 .link {
   display: grid;
-  grid-template-columns: 48px 1fr 24px;
+  grid-template-columns: 48px 1fr auto;
   align-items: center;
   gap: 16px;
   background: var(--deep-blue);
@@ -185,6 +185,45 @@ body {
   opacity: 0.8;
 }
 
+.status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-self: end;
+}
+
+.live-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--hot-red);
+  box-shadow: 0 0 10px rgba(255, 43, 26, 0.6);
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.live-dot.show {
+  opacity: 1;
+  transform: scale(1);
+  animation: live-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(255, 43, 26, 0.6);
+  }
+  50% {
+    transform: scale(1.12);
+    box-shadow: 0 0 16px rgba(255, 43, 26, 0.85);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(255, 43, 26, 0.6);
+  }
+}
+
 @media (max-width: 480px) {
   .card {
     padding: 32px 18px 26px;
@@ -216,5 +255,20 @@ body {
   }
   100% {
     transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.7;
   }
 }
