@@ -53,6 +53,7 @@
             </span>
             <span class="label">Twitch @ianlrsn</span>
             <span class="dots">&#8942;</span>
+            <div class="mini-player" data-twitch-player aria-hidden="true"></div>
           </a>
           <a class="link" href="https://tiktok.com/@ianlrsn">
             <span class="thumb">
@@ -180,15 +181,37 @@
       };
 
       const twitchRow = document.querySelector("[data-twitch]");
+      const twitchPlayerSlot = twitchRow?.querySelector("[data-twitch-player]");
       const params = new URLSearchParams(window.location.search);
       const testLive = params.get("test_live") === "1";
       const forceLive = params.get("force_live") === "1";
       if (forceLive && card) card.classList.add("live-mode");
 
+      const ensureMiniPlayer = () => {
+        if (!twitchPlayerSlot) return;
+        if (twitchPlayerSlot.querySelector("iframe")) return;
+        twitchPlayerSlot.setAttribute("aria-hidden", "false");
+        const parent = window.location.hostname || "localhost";
+        const iframe = document.createElement("iframe");
+        iframe.src = `https://player.twitch.tv/?channel=ianlrsn&parent=${parent}&muted=true&autoplay=true`;
+        iframe.title = "Twitch live stream";
+        iframe.allow = "autoplay; fullscreen";
+        iframe.loading = "lazy";
+        iframe.referrerPolicy = "origin";
+        twitchPlayerSlot.appendChild(iframe);
+      };
+
+      const clearMiniPlayer = () => {
+        if (!twitchPlayerSlot) return;
+        twitchPlayerSlot.setAttribute("aria-hidden", "true");
+        twitchPlayerSlot.innerHTML = "";
+      };
+
       const checkTwitchLive = async () => {
         if (!twitchRow) return;
         if (testLive) {
           twitchRow.classList.add("is-live");
+          ensureMiniPlayer();
           startCycle();
           return;
         }
@@ -199,12 +222,15 @@
           const isLive = Boolean(data?.live);
           twitchRow.classList.toggle("is-live", isLive);
           if (isLive) {
+            ensureMiniPlayer();
             startCycle();
           } else {
+            clearMiniPlayer();
             stopCycle();
           }
         } catch (error) {
           twitchRow.classList.remove("is-live");
+          clearMiniPlayer();
           stopCycle();
         }
       };
