@@ -195,9 +195,12 @@
       const twitchRow = document.querySelector("[data-twitch]");
       const twitchPlayer = twitchRow?.querySelector(".twitch-player");
       const CACHE_TTL_MS = 60000;
-      const CACHE_SAFETY_MS = 1000;
-      const FALLBACK_POLL_MS = 10000;
+      const EARLY_CACHE_THRESHOLD_MS = 2000;
+      const EXTRA_OFFSET_MIN_MS = 2000;
+      const EXTRA_OFFSET_MAX_MS = 10000;
       let liveCheckTimer;
+      let extraOffsetMs = 0;
+      let extraOffsetApplied = false;
       const params = new URLSearchParams(window.location.search);
       const testLive = params.get("test_live") === "1";
       const forceLive = params.get("force_live") === "1";
@@ -223,19 +226,22 @@
         twitchPlayer.innerHTML = "";
       };
 
-      const scheduleNextLiveCheck = (nextDelayMs) => {
+      const scheduleNextLiveCheck = (requestStartMs) => {
         if (liveCheckTimer) clearTimeout(liveCheckTimer);
-        const delay = Math.max(1000, Math.round(nextDelayMs));
+        const targetTime =
+          requestStartMs + CACHE_TTL_MS + (extraOffsetApplied ? extraOffsetMs : 0);
+        const delay = Math.max(0, Math.round(targetTime - Date.now()));
         liveCheckTimer = setTimeout(checkTwitchLive, delay);
       };
 
       const checkTwitchLive = async () => {
         if (!twitchRow) return;
+        const requestStartMs = Date.now();
         if (testLive) {
           twitchRow.classList.add("is-live");
           ensureTwitchEmbed();
           startCycle();
-          scheduleNextLiveCheck(CACHE_TTL_MS + CACHE_SAFETY_MS);
+          scheduleNextLiveCheck(requestStartMs);
           return;
         }
         try {
@@ -249,10 +255,19 @@
                 const checkedAt = Date.parse(data?.checked_at);
                 return Number.isNaN(checkedAt) ? undefined : Date.now() - checkedAt;
               })();
-          const nextDelayMs =
-            data?.cache_status === "hit" && Number.isFinite(cacheAgeMs)
-              ? CACHE_TTL_MS - cacheAgeMs + CACHE_SAFETY_MS
-              : CACHE_TTL_MS + CACHE_SAFETY_MS;
+          if (
+            !extraOffsetApplied &&
+            data?.cache_status === "hit" &&
+            Number.isFinite(cacheAgeMs) &&
+            cacheAgeMs < EARLY_CACHE_THRESHOLD_MS
+          ) {
+            extraOffsetMs =
+              EXTRA_OFFSET_MIN_MS +
+              Math.floor(
+                Math.random() * (EXTRA_OFFSET_MAX_MS - EXTRA_OFFSET_MIN_MS + 1)
+              );
+            extraOffsetApplied = true;
+          }
           twitchRow.classList.toggle("is-live", isLive);
           if (isLive) {
             ensureTwitchEmbed();
@@ -261,12 +276,12 @@
             clearTwitchEmbed();
             stopCycle();
           }
-          scheduleNextLiveCheck(nextDelayMs);
+          scheduleNextLiveCheck(requestStartMs);
         } catch (error) {
           twitchRow.classList.remove("is-live");
           clearTwitchEmbed();
           stopCycle();
-          scheduleNextLiveCheck(FALLBACK_POLL_MS);
+          scheduleNextLiveCheck(requestStartMs);
         }
       };
 
