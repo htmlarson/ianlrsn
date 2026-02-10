@@ -1,6 +1,7 @@
 const TWITCH_CLIENT_ID = "7tiifmm8jdm1lfqrielkfho92fjzwb";
 const TWITCH_USERNAME = "ianlrsn";
 const CACHE_KEY = "data";
+const UNIQUE_LOCS_KEY = "unique_locs";
 const CACHE_TTL_MS = 60000;
 
 const jsonResponse = (payload, status = 200) =>
@@ -12,6 +13,34 @@ const jsonResponse = (payload, status = 200) =>
     },
   });
 
+const updateUniqueLocs = async (env, location, now) => {
+  if (!location?.country && !location?.region && !location?.colo) {
+    return;
+  }
+
+  try {
+    const uniqueLocsRaw = await env.live_kv.get(UNIQUE_LOCS_KEY);
+    const parsedLocs = JSON.parse(uniqueLocsRaw || "[]");
+    const uniqueLocs = Array.isArray(parsedLocs) ? parsedLocs : [];
+    const key = [
+      location.country || "",
+      location.region || "",
+      location.colo || "",
+    ].join("|");
+    const alreadySeen = uniqueLocs.some((entry) => entry?.key === key);
+    if (!alreadySeen) {
+      uniqueLocs.push({
+        key,
+        location: { ...location },
+        first_seen: new Date(now).toISOString(),
+      });
+      await env.live_kv.put(UNIQUE_LOCS_KEY, JSON.stringify(uniqueLocs));
+    }
+  } catch (error) {
+    // Ignore uniqueness tracking failures.
+  }
+};
+
 export async function onRequestGet({ request, env }) {
   const now = Date.now();
   let cached;
@@ -20,9 +49,15 @@ export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const bypassCache = url.searchParams.get("refresh") === "1";
   const cf = request.cf || {};
+  const requestLocation = {
+    country: cf.country,
+    region: cf.region,
+    colo: cf.colo,
+  };
 
   try {
     if (!bypassCache) {
+      await updateUniqueLocs(env, requestLocation, now);
       cached = await env.live_kv.get(CACHE_KEY);
       if (cached) {
         cachedPayload = JSON.parse(cached);
@@ -31,7 +66,9 @@ export async function onRequestGet({ request, env }) {
         if (cacheAgeMs !== undefined && cacheAgeMs < CACHE_TTL_MS) {
           const needsFirstHit =
             !cachedPayload?.cache_first_hit &&
-            (cf.country || cf.region || cf.colo);
+            (requestLocation.country ||
+              requestLocation.region ||
+              requestLocation.colo);
           let updatedPayload = cachedPayload;
           if (needsFirstHit) {
             updatedPayload = {
@@ -39,9 +76,7 @@ export async function onRequestGet({ request, env }) {
               cache_first_hit: {
                 at: new Date(now).toISOString(),
                 location: {
-                  country: cf.country,
-                  region: cf.region,
-                  colo: cf.colo,
+                  ...requestLocation,
                 },
               },
             };

@@ -194,6 +194,10 @@
 
       const twitchRow = document.querySelector("[data-twitch]");
       const twitchPlayer = twitchRow?.querySelector(".twitch-player");
+      const CACHE_TTL_MS = 60000;
+      const CACHE_SAFETY_MS = 1000;
+      const FALLBACK_POLL_MS = 10000;
+      let liveCheckTimer;
       const params = new URLSearchParams(window.location.search);
       const testLive = params.get("test_live") === "1";
       const forceLive = params.get("force_live") === "1";
@@ -219,12 +223,19 @@
         twitchPlayer.innerHTML = "";
       };
 
+      const scheduleNextLiveCheck = (nextDelayMs) => {
+        if (liveCheckTimer) clearTimeout(liveCheckTimer);
+        const delay = Math.max(1000, Math.round(nextDelayMs));
+        liveCheckTimer = setTimeout(checkTwitchLive, delay);
+      };
+
       const checkTwitchLive = async () => {
         if (!twitchRow) return;
         if (testLive) {
           twitchRow.classList.add("is-live");
           ensureTwitchEmbed();
           startCycle();
+          scheduleNextLiveCheck(CACHE_TTL_MS + CACHE_SAFETY_MS);
           return;
         }
         try {
@@ -232,6 +243,16 @@
           if (!response.ok) throw new Error("status fetch failed");
           const data = await response.json();
           const isLive = Boolean(data?.live);
+          const cacheAgeMs = Number.isFinite(data?.cache_age_ms)
+            ? data.cache_age_ms
+            : (() => {
+                const checkedAt = Date.parse(data?.checked_at);
+                return Number.isNaN(checkedAt) ? undefined : Date.now() - checkedAt;
+              })();
+          const nextDelayMs =
+            data?.cache_status === "hit" && Number.isFinite(cacheAgeMs)
+              ? CACHE_TTL_MS - cacheAgeMs + CACHE_SAFETY_MS
+              : CACHE_TTL_MS + CACHE_SAFETY_MS;
           twitchRow.classList.toggle("is-live", isLive);
           if (isLive) {
             ensureTwitchEmbed();
@@ -240,16 +261,17 @@
             clearTwitchEmbed();
             stopCycle();
           }
+          scheduleNextLiveCheck(nextDelayMs);
         } catch (error) {
           twitchRow.classList.remove("is-live");
           clearTwitchEmbed();
           stopCycle();
+          scheduleNextLiveCheck(FALLBACK_POLL_MS);
         }
       };
 
       stopCycle();
       checkTwitchLive();
-      setInterval(checkTwitchLive, 60000);
     </script>
 
   </body>
