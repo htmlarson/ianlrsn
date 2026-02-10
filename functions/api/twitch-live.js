@@ -31,7 +31,7 @@ export async function onRequestGet({ request, env }) {
         if (cacheAgeMs !== undefined && cacheAgeMs < CACHE_TTL_MS) {
           const needsFirstHit =
             !cachedPayload?.cache_first_hit &&
-            (cf.country || cf.region || cf.city || cf.colo);
+            (cf.country || cf.region || cf.colo);
           let updatedPayload = cachedPayload;
           if (needsFirstHit) {
             updatedPayload = {
@@ -41,7 +41,6 @@ export async function onRequestGet({ request, env }) {
                 location: {
                   country: cf.country,
                   region: cf.region,
-                  city: cf.city,
                   colo: cf.colo,
                 },
               },
