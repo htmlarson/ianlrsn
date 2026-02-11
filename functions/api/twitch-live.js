@@ -231,6 +231,7 @@ export async function onRequestGet({ request, env }) {
   const nowIso = new Date(startedAtMs).toISOString();
   const url = new URL(request.url);
   const bypassCache = url.searchParams.get("refresh") === "1";
+  const debugBindings = url.searchParams.get("debug_bindings") === "1";
 
   let db;
   let cachedPayload = null;
@@ -273,11 +274,21 @@ export async function onRequestGet({ request, env }) {
       }
     }
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const isMissingBinding = message.includes("missing_d1_binding");
     const payload = {
       live: false,
       checked_at: nowIso,
-      error: "missing_d1_binding",
+      error: isMissingBinding ? "missing_d1_binding" : "d1_init_failed",
     };
+    if (debugBindings) {
+      payload.debug = {
+        init_error: message,
+        has_REQUEST_LOGS_DB: Boolean(env.REQUEST_LOGS_DB),
+        has_DB: Boolean(env.DB),
+        binding_keys: Object.keys(env || {}).sort(),
+      };
+    }
 
     return jsonResponse(payload, 500);
   }
