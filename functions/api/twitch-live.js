@@ -3,8 +3,6 @@ const TWITCH_USERNAME = "ianlrsn";
 const CACHE_KEY = "twitch-live";
 const CACHE_TTL_MS = 60000;
 
-let schemaInitPromise;
-
 const jsonResponse = (payload, status = 200) =>
   new Response(JSON.stringify(payload), {
     status,
@@ -22,6 +20,15 @@ const getDb = (env) => {
   return db;
 };
 
+const getReadDb = (db) => {
+  if (typeof db.withSession !== "function") {
+    return db;
+  }
+
+  // Prefer replica reads when available; writes stay on primary via `db`.
+  return db.withSession("first-unconstrained");
+};
+
 const serializeHeaders = (headers) => {
   const out = {};
   try {
@@ -32,81 +39,6 @@ const serializeHeaders = (headers) => {
     // Ignore serialization failures.
   }
   return out;
-};
-
-const ensureSchema = async (db) => {
-  if (!schemaInitPromise) {
-    schemaInitPromise = (async () => {
-      await db
-        .prepare(`
-          CREATE TABLE IF NOT EXISTS request_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            created_at TEXT NOT NULL,
-            request_method TEXT,
-            request_url TEXT,
-            request_path TEXT,
-            request_query TEXT,
-            request_headers_json TEXT,
-            cf_json TEXT,
-            cf_country TEXT,
-            cf_region TEXT,
-            cf_city TEXT,
-            cf_colo TEXT,
-            cf_continent TEXT,
-            cf_timezone TEXT,
-            cf_asn INTEGER,
-            cf_as_organization TEXT,
-            cf_http_protocol TEXT,
-            cf_tls_version TEXT,
-            cf_tls_cipher TEXT,
-            cf_client_tcp_rtt INTEGER,
-            cf_bot_management_json TEXT,
-            cache_status TEXT,
-            from_cache INTEGER,
-            stale INTEGER,
-            live INTEGER,
-            response_status INTEGER,
-            response_json TEXT,
-            error_code TEXT,
-            duration_ms INTEGER
-          );
-        `)
-        .run();
-
-      await db
-        .prepare(`
-          CREATE INDEX IF NOT EXISTS idx_request_logs_created_at ON request_logs(created_at DESC);
-        `)
-        .run();
-
-      await db
-        .prepare(`
-          CREATE INDEX IF NOT EXISTS idx_request_logs_status ON request_logs(response_status);
-        `)
-        .run();
-
-      await db
-        .prepare(`
-          CREATE INDEX IF NOT EXISTS idx_request_logs_cache_status ON request_logs(cache_status);
-        `)
-        .run();
-
-      await db
-        .prepare(`
-          CREATE TABLE IF NOT EXISTS api_cache_entries (
-            cache_key TEXT PRIMARY KEY,
-            payload_json TEXT NOT NULL,
-            checked_at_ms INTEGER NOT NULL
-          );
-        `)
-        .run();
-    })().catch((error) => {
-      schemaInitPromise = undefined;
-      throw error;
-    });
-  }
-
-  await schemaInitPromise;
 };
 
 const getCacheRecord = async (db, cacheKey) => {
@@ -247,15 +179,16 @@ export async function onRequestGet({ request, env }) {
   const debugBindings = url.searchParams.get("debug_bindings") === "1";
 
   let db;
+  let readDb;
   let cachedPayload = null;
   let cacheAgeMs;
 
   try {
     db = getDb(env);
-    await ensureSchema(db);
+    readDb = getReadDb(db);
 
     if (!bypassCache) {
-      const cacheRecord = await getCacheRecord(db, CACHE_KEY);
+      const cacheRecord = await getCacheRecord(readDb, CACHE_KEY);
       if (cacheRecord?.payload?.checked_at) {
         cacheAgeMs = startedAtMs - cacheRecord.checkedAtMs;
         cachedPayload = cacheRecord.payload;
