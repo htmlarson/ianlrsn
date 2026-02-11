@@ -37,60 +37,73 @@ const serializeHeaders = (headers) => {
 const ensureSchema = async (db) => {
   if (!schemaInitPromise) {
     schemaInitPromise = (async () => {
-      await db.exec(`
-        CREATE TABLE IF NOT EXISTS request_logs (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          created_at TEXT NOT NULL,
-          request_method TEXT,
-          request_url TEXT,
-          request_path TEXT,
-          request_query TEXT,
-          request_headers_json TEXT,
-          cf_json TEXT,
-          cf_country TEXT,
-          cf_region TEXT,
-          cf_city TEXT,
-          cf_colo TEXT,
-          cf_continent TEXT,
-          cf_timezone TEXT,
-          cf_asn INTEGER,
-          cf_as_organization TEXT,
-          cf_http_protocol TEXT,
-          cf_tls_version TEXT,
-          cf_tls_cipher TEXT,
-          cf_client_tcp_rtt INTEGER,
-          cf_bot_management_json TEXT,
-          cache_status TEXT,
-          from_cache INTEGER,
-          stale INTEGER,
-          live INTEGER,
-          response_status INTEGER,
-          response_json TEXT,
-          error_code TEXT,
-          duration_ms INTEGER
-        );
-      `);
+      await db
+        .prepare(`
+          CREATE TABLE IF NOT EXISTS request_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            request_method TEXT,
+            request_url TEXT,
+            request_path TEXT,
+            request_query TEXT,
+            request_headers_json TEXT,
+            cf_json TEXT,
+            cf_country TEXT,
+            cf_region TEXT,
+            cf_city TEXT,
+            cf_colo TEXT,
+            cf_continent TEXT,
+            cf_timezone TEXT,
+            cf_asn INTEGER,
+            cf_as_organization TEXT,
+            cf_http_protocol TEXT,
+            cf_tls_version TEXT,
+            cf_tls_cipher TEXT,
+            cf_client_tcp_rtt INTEGER,
+            cf_bot_management_json TEXT,
+            cache_status TEXT,
+            from_cache INTEGER,
+            stale INTEGER,
+            live INTEGER,
+            response_status INTEGER,
+            response_json TEXT,
+            error_code TEXT,
+            duration_ms INTEGER
+          );
+        `)
+        .run();
 
-      await db.exec(`
-        CREATE INDEX IF NOT EXISTS idx_request_logs_created_at ON request_logs(created_at DESC);
-      `);
+      await db
+        .prepare(`
+          CREATE INDEX IF NOT EXISTS idx_request_logs_created_at ON request_logs(created_at DESC);
+        `)
+        .run();
 
-      await db.exec(`
-        CREATE INDEX IF NOT EXISTS idx_request_logs_status ON request_logs(response_status);
-      `);
+      await db
+        .prepare(`
+          CREATE INDEX IF NOT EXISTS idx_request_logs_status ON request_logs(response_status);
+        `)
+        .run();
 
-      await db.exec(`
-        CREATE INDEX IF NOT EXISTS idx_request_logs_cache_status ON request_logs(cache_status);
-      `);
+      await db
+        .prepare(`
+          CREATE INDEX IF NOT EXISTS idx_request_logs_cache_status ON request_logs(cache_status);
+        `)
+        .run();
 
-      await db.exec(`
-        CREATE TABLE IF NOT EXISTS api_cache_entries (
-          cache_key TEXT PRIMARY KEY,
-          payload_json TEXT NOT NULL,
-          checked_at_ms INTEGER NOT NULL
-        );
-      `);
-    })();
+      await db
+        .prepare(`
+          CREATE TABLE IF NOT EXISTS api_cache_entries (
+            cache_key TEXT PRIMARY KEY,
+            payload_json TEXT NOT NULL,
+            checked_at_ms INTEGER NOT NULL
+          );
+        `)
+        .run();
+    })().catch((error) => {
+      schemaInitPromise = undefined;
+      throw error;
+    });
   }
 
   await schemaInitPromise;
