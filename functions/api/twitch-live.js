@@ -15,10 +15,11 @@ const jsonResponse = (payload, status = 200) =>
   });
 
 const getDb = (env) => {
-  if (!env.REQUEST_LOGS_DB) {
-    throw new Error("missing_d1_binding");
+  const db = env.REQUEST_LOGS_DB || env.DB;
+  if (!db) {
+    throw new Error("missing_d1_binding_REQUEST_LOGS_DB");
   }
-  return env.REQUEST_LOGS_DB;
+  return db;
 };
 
 const serializeHeaders = (headers) => {
