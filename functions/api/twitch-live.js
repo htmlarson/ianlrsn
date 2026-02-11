@@ -1,7 +1,6 @@
 const TWITCH_CLIENT_ID = "7tiifmm8jdm1lfqrielkfho92fjzwb";
 const TWITCH_USERNAME = "ianlrsn";
-const CACHE_KEY = "data";
-const UNIQUE_LOCS_KEY = "unique_locs";
+const CACHE_KEY = "twitch-live";
 const CACHE_TTL_MS = 60000;
 
 const jsonResponse = (payload, status = 200) =>
@@ -13,103 +12,255 @@ const jsonResponse = (payload, status = 200) =>
     },
   });
 
-const updateUniqueLocs = async (env, location, now) => {
-  if (!location?.country && !location?.region && !location?.colo) {
-    return;
+const getDb = (env) => {
+  const db = env.REQUEST_LOGS_DB || env.DB;
+  if (!db) {
+    throw new Error("missing_d1_binding_REQUEST_LOGS_DB");
+  }
+  return db;
+};
+
+const getReadDb = (db) => {
+  if (typeof db.withSession !== "function") {
+    return db;
+  }
+
+  // Prefer replica reads when available; writes stay on primary via `db`.
+  return db.withSession("first-unconstrained");
+};
+
+const serializeHeaders = (headers) => {
+  const out = {};
+  try {
+    for (const [key, value] of headers.entries()) {
+      out[key] = value;
+    }
+  } catch (error) {
+    // Ignore serialization failures.
+  }
+  return out;
+};
+
+const getCacheRecord = async (db, cacheKey) => {
+  const row = await db
+    .prepare(
+      `
+      SELECT payload_json, checked_at_ms
+      FROM api_cache_entries
+      WHERE cache_key = ?
+      LIMIT 1
+      `
+    )
+    .bind(cacheKey)
+    .first();
+
+  if (!row) {
+    return null;
   }
 
   try {
-    const uniqueLocsRaw = await env.live_kv.get(UNIQUE_LOCS_KEY);
-    const parsedLocs = JSON.parse(uniqueLocsRaw || "[]");
-    const uniqueLocs = Array.isArray(parsedLocs) ? parsedLocs : [];
-    const key = [
-      location.country || "",
-      location.region || "",
-      location.colo || "",
-    ].join("|");
-    const alreadySeen = uniqueLocs.some((entry) => entry?.key === key);
-    if (!alreadySeen) {
-      uniqueLocs.push({
-        key,
-        location: { ...location },
-        first_seen: new Date(now).toISOString(),
-      });
-      await env.live_kv.put(UNIQUE_LOCS_KEY, JSON.stringify(uniqueLocs));
-    }
+    return {
+      payload: JSON.parse(row.payload_json),
+      checkedAtMs: row.checked_at_ms,
+    };
   } catch (error) {
-    // Ignore uniqueness tracking failures.
+    return null;
+  }
+};
+
+const setCacheRecord = async (db, cacheKey, payload, checkedAtMs) => {
+  await db
+    .prepare(
+      `
+      INSERT INTO api_cache_entries (cache_key, payload_json, checked_at_ms)
+      VALUES (?, ?, ?)
+      ON CONFLICT(cache_key) DO UPDATE SET
+        payload_json = excluded.payload_json,
+        checked_at_ms = excluded.checked_at_ms
+      `
+    )
+    .bind(cacheKey, JSON.stringify(payload || {}), checkedAtMs)
+    .run();
+};
+
+const logRequestToD1 = async ({
+  db,
+  request,
+  startedAtMs,
+  status,
+  responsePayload,
+  cacheStatus,
+  fromCache,
+  stale,
+  live,
+  errorCode,
+}) => {
+  const now = Date.now();
+  const url = new URL(request.url);
+  const cf = request.cf || {};
+
+  try {
+    await db
+      .prepare(
+        `
+        INSERT INTO request_logs (
+          created_at,
+          request_method,
+          request_url,
+          request_path,
+          request_query,
+          request_headers_json,
+          cf_json,
+          cf_country,
+          cf_region,
+          cf_city,
+          cf_colo,
+          cf_continent,
+          cf_timezone,
+          cf_asn,
+          cf_as_organization,
+          cf_http_protocol,
+          cf_tls_version,
+          cf_tls_cipher,
+          cf_client_tcp_rtt,
+          cf_bot_management_json,
+          cache_status,
+          from_cache,
+          stale,
+          live,
+          response_status,
+          response_json,
+          error_code,
+          duration_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+      )
+      .bind(
+        new Date(now).toISOString(),
+        request.method,
+        request.url,
+        url.pathname,
+        url.search,
+        JSON.stringify(serializeHeaders(request.headers)),
+        JSON.stringify(cf),
+        cf.country || null,
+        cf.region || null,
+        cf.city || null,
+        cf.colo || null,
+        cf.continent || null,
+        cf.timezone || null,
+        Number.isFinite(cf.asn) ? cf.asn : null,
+        cf.asOrganization || null,
+        cf.httpProtocol || null,
+        cf.tlsVersion || null,
+        cf.tlsCipher || null,
+        Number.isFinite(cf.clientTcpRtt) ? cf.clientTcpRtt : null,
+        JSON.stringify(cf.botManagement || null),
+        cacheStatus || null,
+        fromCache ? 1 : 0,
+        stale ? 1 : 0,
+        typeof live === "boolean" ? (live ? 1 : 0) : null,
+        status,
+        JSON.stringify(responsePayload || null),
+        errorCode || null,
+        now - startedAtMs
+      )
+      .run();
+  } catch (error) {
+    // Never fail API response due to logging errors.
   }
 };
 
 export async function onRequestGet({ request, env }) {
-  const now = Date.now();
-  let cached;
-  let cachedPayload;
-  let cacheAgeMs;
+  const startedAtMs = Date.now();
+  const nowIso = new Date(startedAtMs).toISOString();
   const url = new URL(request.url);
   const bypassCache = url.searchParams.get("refresh") === "1";
-  const cf = request.cf || {};
-  const requestLocation = {
-    country: cf.country,
-    region: cf.region,
-    colo: cf.colo,
-  };
+  const debugBindings = url.searchParams.get("debug_bindings") === "1";
+
+  let db;
+  let readDb;
+  let cachedPayload = null;
+  let cacheAgeMs;
 
   try {
+    db = getDb(env);
+    readDb = getReadDb(db);
+
     if (!bypassCache) {
-      await updateUniqueLocs(env, requestLocation, now);
-      cached = await env.live_kv.get(CACHE_KEY);
-      if (cached) {
-        cachedPayload = JSON.parse(cached);
-        const checkedAt = Date.parse(cachedPayload?.checked_at);
-        cacheAgeMs = Number.isNaN(checkedAt) ? undefined : now - checkedAt;
-        if (cacheAgeMs !== undefined && cacheAgeMs < CACHE_TTL_MS) {
-          const needsFirstHit =
-            !cachedPayload?.cache_first_hit &&
-            (requestLocation.country ||
-              requestLocation.region ||
-              requestLocation.colo);
-          let updatedPayload = cachedPayload;
-          if (needsFirstHit) {
-            updatedPayload = {
-              ...cachedPayload,
-              cache_first_hit: {
-                at: new Date(now).toISOString(),
-                location: {
-                  ...requestLocation,
-                },
-              },
-            };
-            await env.live_kv.put(CACHE_KEY, JSON.stringify(updatedPayload), {
-              expirationTtl: Math.ceil(CACHE_TTL_MS / 1000),
-            });
-          }
-          return jsonResponse({
-            live: Boolean(updatedPayload.live),
-            checked_at: updatedPayload.checked_at,
+      const cacheRecord = await getCacheRecord(readDb, CACHE_KEY);
+      if (cacheRecord?.payload?.checked_at) {
+        cacheAgeMs = startedAtMs - cacheRecord.checkedAtMs;
+        cachedPayload = cacheRecord.payload;
+
+        if (cacheAgeMs >= 0 && cacheAgeMs < CACHE_TTL_MS) {
+          const payload = {
+            live: Boolean(cacheRecord.payload.live),
+            checked_at: cacheRecord.payload.checked_at,
             from_cache: true,
             cache_age_ms: cacheAgeMs,
             cache_status: "hit",
-            cache_first_hit: updatedPayload.cache_first_hit,
+          };
+
+          await logRequestToD1({
+            db,
+            request,
+            startedAtMs,
+            status: 200,
+            responsePayload: payload,
+            cacheStatus: "hit",
+            fromCache: true,
+            stale: false,
+            live: payload.live,
+            errorCode: null,
           });
+
+          return jsonResponse(payload);
         }
       }
     }
   } catch (error) {
-    cachedPayload = undefined;
-    cacheAgeMs = undefined;
+    const message = error instanceof Error ? error.message : String(error);
+    const isMissingBinding = message.includes("missing_d1_binding");
+    const payload = {
+      live: false,
+      checked_at: nowIso,
+      error: isMissingBinding ? "missing_d1_binding" : "d1_init_failed",
+    };
+    if (debugBindings) {
+      payload.debug = {
+        init_error: message,
+        has_REQUEST_LOGS_DB: Boolean(env.REQUEST_LOGS_DB),
+        has_DB: Boolean(env.DB),
+        binding_keys: Object.keys(env || {}).sort(),
+      };
+    }
+
+    return jsonResponse(payload, 500);
   }
 
   const clientSecret = env.TWITCH_CLIENT_SECRET;
   if (!clientSecret) {
-    return jsonResponse(
-      {
-        live: false,
-        checked_at: new Date(now).toISOString(),
-        error: "missing_twitch_client_secret",
-      },
-      500
-    );
+    const payload = {
+      live: false,
+      checked_at: nowIso,
+      error: "missing_twitch_client_secret",
+    };
+
+    await logRequestToD1({
+      db,
+      request,
+      startedAtMs,
+      status: 500,
+      responsePayload: payload,
+      cacheStatus: bypassCache ? "bypass" : "miss",
+      fromCache: false,
+      stale: false,
+      live: false,
+      errorCode: "missing_twitch_client_secret",
+    });
+
+    return jsonResponse(payload, 500);
   }
 
   try {
@@ -125,13 +276,13 @@ export async function onRequestGet({ request, env }) {
     );
 
     if (!tokenResponse.ok) {
-      throw new Error("token request failed");
+      throw new Error("token_request_failed");
     }
 
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData?.access_token;
     if (!accessToken) {
-      throw new Error("missing access token");
+      throw new Error("missing_access_token");
     }
 
     const streamResponse = await fetch(
@@ -145,44 +296,84 @@ export async function onRequestGet({ request, env }) {
     );
 
     if (!streamResponse.ok) {
-      throw new Error("stream request failed");
+      throw new Error("stream_request_failed");
     }
 
     const streamData = await streamResponse.json();
     const live = Array.isArray(streamData?.data) && streamData.data.length > 0;
     const payload = {
       live,
-      checked_at: new Date(now).toISOString(),
+      checked_at: nowIso,
     };
 
-    await env.live_kv.put(CACHE_KEY, JSON.stringify(payload), {
-      expirationTtl: Math.ceil(CACHE_TTL_MS / 1000),
-    });
+    await setCacheRecord(db, CACHE_KEY, payload, startedAtMs);
 
-    return jsonResponse({
+    const responsePayload = {
       ...payload,
       from_cache: false,
       cache_status: bypassCache ? "bypass" : "miss",
+    };
+
+    await logRequestToD1({
+      db,
+      request,
+      startedAtMs,
+      status: 200,
+      responsePayload: responsePayload,
+      cacheStatus: responsePayload.cache_status,
+      fromCache: false,
+      stale: false,
+      live,
+      errorCode: null,
     });
+
+    return jsonResponse(responsePayload);
   } catch (error) {
     if (cachedPayload?.checked_at) {
-      return jsonResponse({
+      const payload = {
         live: Boolean(cachedPayload.live),
         checked_at: cachedPayload.checked_at,
         from_cache: true,
         stale: true,
         cache_age_ms: cacheAgeMs,
         cache_status: "stale",
+      };
+
+      await logRequestToD1({
+        db,
+        request,
+        startedAtMs,
+        status: 200,
+        responsePayload: payload,
+        cacheStatus: "stale",
+        fromCache: true,
+        stale: true,
+        live: payload.live,
+        errorCode: "twitch_fetch_failed",
       });
+
+      return jsonResponse(payload);
     }
 
-    return jsonResponse(
-      {
-        live: false,
-        checked_at: new Date(now).toISOString(),
-        error: "twitch_fetch_failed",
-      },
-      502
-    );
+    const payload = {
+      live: false,
+      checked_at: new Date().toISOString(),
+      error: "twitch_fetch_failed",
+    };
+
+    await logRequestToD1({
+      db,
+      request,
+      startedAtMs,
+      status: 502,
+      responsePayload: payload,
+      cacheStatus: bypassCache ? "bypass" : "miss",
+      fromCache: false,
+      stale: false,
+      live: false,
+      errorCode: "twitch_fetch_failed",
+    });
+
+    return jsonResponse(payload, 502);
   }
 }
