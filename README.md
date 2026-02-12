@@ -1,4 +1,4 @@
-# ianlrsn by Andrew Larson
+# ianlrsn
 
 Static Linktree-style page for @ianlrsn, inspired by the neon green/red/blue look in the provided screenshot. Hosted on Cloudflare Pages at `ianlrsn.com`.
 
