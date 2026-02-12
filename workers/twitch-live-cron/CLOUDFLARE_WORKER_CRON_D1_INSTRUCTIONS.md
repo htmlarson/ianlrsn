@@ -14,13 +14,14 @@ Run a cron Worker every minute, fetch Twitch live status, and write the current 
 3. Add the D1 database binding as `DB`.
 4. Add Worker secret `TWITCH_CLIENT_SECRET`.
 5. In `scheduled()`, call Twitch, compute `live`, and insert a new row in `api2_cache_entries` with key `twitch-live`.
-6. Create `api2_cache_latest` view in D1 and read current state from that view in API handlers.
-7. Add minimal error handling and logging:
+6. Include execution metadata columns when available (cron expression, scheduled time, request/CF fields for HTTP-triggered updates, env binding key list).
+7. Create `api2_cache_latest` view in D1 and read current state from that view in API handlers.
+8. Add minimal error handling and logging:
    - Log run ID, start/end, and errors.
-8. Test locally:
+9. Test locally:
    - `wrangler dev --test-scheduled`
    - Trigger scheduled endpoint and verify the D1 write occurs.
-9. Deploy and validate:
+10. Deploy and validate:
    - Deploy with Wrangler.
    - Confirm trigger events and DB rows.
 

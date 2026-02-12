@@ -114,7 +114,21 @@ CREATE TABLE IF NOT EXISTS api2_cache_entries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   cache_key TEXT NOT NULL,
   payload_json TEXT NOT NULL,
-  checked_at_ms INTEGER NOT NULL
+  checked_at_ms INTEGER NOT NULL,
+  source_event_type TEXT,
+  trigger_cron TEXT,
+  scheduled_time_ms INTEGER,
+  request_url TEXT,
+  request_method TEXT,
+  request_path TEXT,
+  request_cf_colo TEXT,
+  request_cf_country TEXT,
+  request_cf_region_code TEXT,
+  request_cf_city TEXT,
+  request_cf_timezone TEXT,
+  request_cf_asn INTEGER,
+  request_cf_ray TEXT,
+  runtime_env_json TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_api2_cache_entries_key_checked_at
@@ -256,7 +270,21 @@ CREATE TABLE IF NOT EXISTS api2_cache_entries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   cache_key TEXT NOT NULL,
   payload_json TEXT NOT NULL,
-  checked_at_ms INTEGER NOT NULL
+  checked_at_ms INTEGER NOT NULL,
+  source_event_type TEXT,
+  trigger_cron TEXT,
+  scheduled_time_ms INTEGER,
+  request_url TEXT,
+  request_method TEXT,
+  request_path TEXT,
+  request_cf_colo TEXT,
+  request_cf_country TEXT,
+  request_cf_region_code TEXT,
+  request_cf_city TEXT,
+  request_cf_timezone TEXT,
+  request_cf_asn INTEGER,
+  request_cf_ray TEXT,
+  runtime_env_json TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_api2_cache_entries_key_checked_at
@@ -274,4 +302,23 @@ INNER JOIN (
   FROM api2_cache_entries
   GROUP BY cache_key
 ) latest ON latest.latest_id = e.id;
+```
+
+If `api2_cache_entries` already exists and you want to extend it with these metadata columns:
+
+```sql
+ALTER TABLE api2_cache_entries ADD COLUMN source_event_type TEXT;
+ALTER TABLE api2_cache_entries ADD COLUMN trigger_cron TEXT;
+ALTER TABLE api2_cache_entries ADD COLUMN scheduled_time_ms INTEGER;
+ALTER TABLE api2_cache_entries ADD COLUMN request_url TEXT;
+ALTER TABLE api2_cache_entries ADD COLUMN request_method TEXT;
+ALTER TABLE api2_cache_entries ADD COLUMN request_path TEXT;
+ALTER TABLE api2_cache_entries ADD COLUMN request_cf_colo TEXT;
+ALTER TABLE api2_cache_entries ADD COLUMN request_cf_country TEXT;
+ALTER TABLE api2_cache_entries ADD COLUMN request_cf_region_code TEXT;
+ALTER TABLE api2_cache_entries ADD COLUMN request_cf_city TEXT;
+ALTER TABLE api2_cache_entries ADD COLUMN request_cf_timezone TEXT;
+ALTER TABLE api2_cache_entries ADD COLUMN request_cf_asn INTEGER;
+ALTER TABLE api2_cache_entries ADD COLUMN request_cf_ray TEXT;
+ALTER TABLE api2_cache_entries ADD COLUMN runtime_env_json TEXT;
 ```

@@ -2,15 +2,58 @@ const TWITCH_CLIENT_ID = "tsuxllpdawrkk0jnkkcz1hjs9yb6p4";
 const TWITCH_USERNAME = "ianlrsn";
 const CACHE_KEY = "twitch-live";
 
-const setCacheRecord = async (db, cacheKey, payload, checkedAtMs) => {
+const summarizeEnv = (env) =>
+  JSON.stringify({
+    binding_keys: Object.keys(env || {}).sort(),
+  });
+
+const setCacheRecord = async (db, cacheKey, payload, checkedAtMs, executionMeta) => {
   await db
     .prepare(
       `
-      INSERT INTO api2_cache_entries (cache_key, payload_json, checked_at_ms)
-      VALUES (?, ?, ?)
+      INSERT INTO api2_cache_entries (
+        cache_key,
+        payload_json,
+        checked_at_ms,
+        source_event_type,
+        trigger_cron,
+        scheduled_time_ms,
+        request_url,
+        request_method,
+        request_path,
+        request_cf_colo,
+        request_cf_country,
+        request_cf_region_code,
+        request_cf_city,
+        request_cf_timezone,
+        request_cf_asn,
+        request_cf_ray,
+        runtime_env_json
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
     )
-    .bind(cacheKey, JSON.stringify(payload || {}), checkedAtMs)
+    .bind(
+      cacheKey,
+      JSON.stringify(payload || {}),
+      checkedAtMs,
+      executionMeta.sourceEventType || null,
+      executionMeta.triggerCron || null,
+      Number.isFinite(executionMeta.scheduledTimeMs)
+        ? executionMeta.scheduledTimeMs
+        : null,
+      executionMeta.requestUrl || null,
+      executionMeta.requestMethod || null,
+      executionMeta.requestPath || null,
+      executionMeta.requestCfColo || null,
+      executionMeta.requestCfCountry || null,
+      executionMeta.requestCfRegionCode || null,
+      executionMeta.requestCfCity || null,
+      executionMeta.requestCfTimezone || null,
+      Number.isFinite(executionMeta.requestCfAsn) ? executionMeta.requestCfAsn : null,
+      executionMeta.requestCfRay || null,
+      executionMeta.runtimeEnvJson || null
+    )
     .run();
 };
 
@@ -52,7 +95,8 @@ const fetchLiveStatus = async (clientSecret) => {
   return Array.isArray(streamData?.data) && streamData.data.length > 0;
 };
 
-const runTwitchUpdate = async (env, updatedBy) => {
+const runTwitchUpdate = async (env, options) => {
+  const { updatedBy, event = null, request = null } = options || {};
   if (!env.DB) {
     throw new Error("missing_d1_binding_DB");
   }
@@ -63,6 +107,25 @@ const runTwitchUpdate = async (env, updatedBy) => {
   const checkedAtMs = Date.now();
   const checkedAt = new Date(checkedAtMs).toISOString();
   const live = await fetchLiveStatus(env.TWITCH_CLIENT_SECRET);
+  const requestUrl = request ? new URL(request.url) : null;
+  const cf = request?.cf || null;
+
+  const executionMeta = {
+    sourceEventType: updatedBy,
+    triggerCron: event?.cron || null,
+    scheduledTimeMs: event?.scheduledTime,
+    requestUrl: request?.url || null,
+    requestMethod: request?.method || null,
+    requestPath: requestUrl?.pathname || null,
+    requestCfColo: cf?.colo || null,
+    requestCfCountry: cf?.country || null,
+    requestCfRegionCode: cf?.regionCode || null,
+    requestCfCity: cf?.city || null,
+    requestCfTimezone: cf?.timezone || null,
+    requestCfAsn: cf?.asn,
+    requestCfRay: request?.headers?.get("cf-ray") || null,
+    runtimeEnvJson: summarizeEnv(env),
+  };
 
   await setCacheRecord(
     env.DB,
@@ -72,7 +135,8 @@ const runTwitchUpdate = async (env, updatedBy) => {
       checked_at: checkedAt,
       updated_by: updatedBy,
     },
-    checkedAtMs
+    checkedAtMs,
+    executionMeta
   );
 
   console.log(
@@ -95,7 +159,7 @@ export default {
     }
 
     try {
-      await runTwitchUpdate(env, "http");
+      await runTwitchUpdate(env, { updatedBy: "http", request });
       return Response.json({ ok: true, mode: "http", updated: true });
     } catch (error) {
       return Response.json(
@@ -112,7 +176,7 @@ export default {
 
   async scheduled(_event, env, ctx) {
     ctx.waitUntil(
-      runTwitchUpdate(env, "cron").catch((error) => {
+      runTwitchUpdate(env, { updatedBy: "cron", event: _event }).catch((error) => {
         console.error(
           JSON.stringify({
             event: "twitch_live_update_failed",
