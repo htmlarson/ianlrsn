@@ -1,0 +1,30 @@
+{
+  "name": "ianlrsn-twitch-live-cron",
+  "main": "src/index.js",
+  "compatibility_date": "2026-02-12",
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ianlrsn",
+      "database_id": "96bfb53d-dc1f-455e-b9f2-a60bcb6464b7"
+    }
+  ],
+  "observability": {
+    "enabled": false,
+    "head_sampling_rate": 1,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": false,
+      "persist": true,
+      "head_sampling_rate": 1
+    }
+  }
+}

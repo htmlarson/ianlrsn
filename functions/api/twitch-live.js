@@ -1,7 +1,4 @@
-const TWITCH_CLIENT_ID = "7tiifmm8jdm1lfqrielkfho92fjzwb";
-const TWITCH_USERNAME = "ianlrsn";
 const CACHE_KEY = "twitch-live";
-const CACHE_TTL_MS = 60000;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -56,7 +53,7 @@ const getCacheRecord = async (db, cacheKey) => {
     .prepare(
       `
       SELECT payload_json, checked_at_ms
-      FROM api_cache_entries
+      FROM api2_cache_latest
       WHERE cache_key = ?
       LIMIT 1
       `
@@ -76,21 +73,6 @@ const getCacheRecord = async (db, cacheKey) => {
   } catch (error) {
     return null;
   }
-};
-
-const setCacheRecord = async (db, cacheKey, payload, checkedAtMs) => {
-  await db
-    .prepare(
-      `
-      INSERT INTO api_cache_entries (cache_key, payload_json, checked_at_ms)
-      VALUES (?, ?, ?)
-      ON CONFLICT(cache_key) DO UPDATE SET
-        payload_json = excluded.payload_json,
-        checked_at_ms = excluded.checked_at_ms
-      `
-    )
-    .bind(cacheKey, JSON.stringify(payload || {}), checkedAtMs)
-    .run();
 };
 
 const getValidatedSession = async (readDb, request) => {
@@ -261,14 +243,11 @@ const logRequestToD1 = async ({
 export async function onRequestGet({ request, env }) {
   const startedAtMs = Date.now();
   const nowIso = new Date(startedAtMs).toISOString();
-  const url = new URL(request.url);
-  const bypassCache = url.searchParams.get("refresh") === "1";
-  const debugBindings = url.searchParams.get("debug_bindings") === "1";
+  const debugBindings =
+    new URL(request.url).searchParams.get("debug_bindings") === "1";
 
   let db;
   let readDb;
-  let cachedPayload = null;
-  let cacheAgeMs;
   let sessionId = null;
   let userId = null;
 
@@ -307,41 +286,6 @@ export async function onRequestGet({ request, env }) {
     }
 
     await touchSession(db, sessionId);
-
-    if (!bypassCache) {
-      const cacheRecord = await getCacheRecord(readDb, CACHE_KEY);
-      if (cacheRecord?.payload?.checked_at) {
-        cacheAgeMs = startedAtMs - cacheRecord.checkedAtMs;
-        cachedPayload = cacheRecord.payload;
-
-        if (cacheAgeMs >= 0 && cacheAgeMs < CACHE_TTL_MS) {
-          const payload = {
-            live: Boolean(cacheRecord.payload.live),
-            checked_at: cacheRecord.payload.checked_at,
-            from_cache: true,
-            cache_age_ms: cacheAgeMs,
-            cache_status: "hit",
-          };
-
-          await logRequestToD1({
-            db,
-            request,
-            startedAtMs,
-            status: 200,
-            responsePayload: payload,
-            cacheStatus: "hit",
-            fromCache: true,
-            stale: false,
-            live: payload.live,
-            errorCode: null,
-            sessionId,
-            userId,
-          });
-
-          return jsonResponse(payload);
-        }
-      }
-    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const isMissingBinding = message.includes("missing_d1_binding");
@@ -361,82 +305,13 @@ export async function onRequestGet({ request, env }) {
 
     return jsonResponse(payload, 500);
   }
-
-  const clientSecret = env.TWITCH_CLIENT_SECRET;
-  if (!clientSecret) {
+  const cacheRecord = await getCacheRecord(readDb, CACHE_KEY);
+  if (cacheRecord?.payload?.checked_at) {
     const payload = {
-      live: false,
-      checked_at: nowIso,
-      error: "missing_twitch_client_secret",
-    };
-
-    await logRequestToD1({
-      db,
-      request,
-      startedAtMs,
-      status: 500,
-      responsePayload: payload,
-      cacheStatus: bypassCache ? "bypass" : "miss",
-      fromCache: false,
-      stale: false,
-      live: false,
-      errorCode: "missing_twitch_client_secret",
-      sessionId,
-      userId,
-    });
-
-    return jsonResponse(payload, 500);
-  }
-
-  try {
-    const tokenParams = new URLSearchParams({
-      client_id: TWITCH_CLIENT_ID,
-      client_secret: clientSecret,
-      grant_type: "client_credentials",
-    });
-
-    const tokenResponse = await fetch(
-      `https://id.twitch.tv/oauth2/token?${tokenParams.toString()}`,
-      { method: "POST" }
-    );
-
-    if (!tokenResponse.ok) {
-      throw new Error("token_request_failed");
-    }
-
-    const tokenData = await tokenResponse.json();
-    const accessToken = tokenData?.access_token;
-    if (!accessToken) {
-      throw new Error("missing_access_token");
-    }
-
-    const streamResponse = await fetch(
-      `https://api.twitch.tv/helix/streams?user_login=${TWITCH_USERNAME}`,
-      {
-        headers: {
-          "Client-ID": TWITCH_CLIENT_ID,
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
-
-    if (!streamResponse.ok) {
-      throw new Error("stream_request_failed");
-    }
-
-    const streamData = await streamResponse.json();
-    const live = Array.isArray(streamData?.data) && streamData.data.length > 0;
-    const payload = {
-      live,
-      checked_at: nowIso,
-    };
-
-    await setCacheRecord(db, CACHE_KEY, payload, startedAtMs);
-
-    const responsePayload = {
-      ...payload,
-      from_cache: false,
-      cache_status: bypassCache ? "bypass" : "miss",
+      live: Boolean(cacheRecord.payload.live),
+      checked_at: cacheRecord.payload.checked_at,
+      updated_by: cacheRecord.payload.updated_by || "unknown",
+      source: "d1",
     };
 
     await logRequestToD1({
@@ -444,67 +319,41 @@ export async function onRequestGet({ request, env }) {
       request,
       startedAtMs,
       status: 200,
-      responsePayload: responsePayload,
-      cacheStatus: responsePayload.cache_status,
-      fromCache: false,
+      responsePayload: payload,
+      cacheStatus: "db",
+      fromCache: true,
       stale: false,
-      live,
+      live: payload.live,
       errorCode: null,
       sessionId,
       userId,
     });
 
-    return jsonResponse(responsePayload);
-  } catch (error) {
-    if (cachedPayload?.checked_at) {
-      const payload = {
-        live: Boolean(cachedPayload.live),
-        checked_at: cachedPayload.checked_at,
-        from_cache: true,
-        stale: true,
-        cache_age_ms: cacheAgeMs,
-        cache_status: "stale",
-      };
-
-      await logRequestToD1({
-        db,
-        request,
-        startedAtMs,
-        status: 200,
-        responsePayload: payload,
-        cacheStatus: "stale",
-        fromCache: true,
-        stale: true,
-        live: payload.live,
-        errorCode: "twitch_fetch_failed",
-        sessionId,
-        userId,
-      });
-
-      return jsonResponse(payload);
-    }
-
-    const payload = {
-      live: false,
-      checked_at: new Date().toISOString(),
-      error: "twitch_fetch_failed",
-    };
-
-    await logRequestToD1({
-      db,
-      request,
-      startedAtMs,
-      status: 502,
-      responsePayload: payload,
-      cacheStatus: bypassCache ? "bypass" : "miss",
-      fromCache: false,
-      stale: false,
-      live: false,
-      errorCode: "twitch_fetch_failed",
-      sessionId,
-      userId,
-    });
-
-    return jsonResponse(payload, 502);
+    return jsonResponse(payload);
   }
+
+  const payload = {
+    live: false,
+    checked_at: nowIso,
+    updated_by: "unknown",
+    source: "d1",
+    error: "twitch_state_unavailable",
+  };
+
+  await logRequestToD1({
+    db,
+    request,
+    startedAtMs,
+    status: 200,
+    responsePayload: payload,
+    cacheStatus: "empty",
+    fromCache: false,
+    stale: false,
+    live: false,
+    errorCode: "twitch_state_unavailable",
+    sessionId,
+    userId,
+  });
+
+  return jsonResponse(payload);
 }
