@@ -6,11 +6,8 @@ const setCacheRecord = async (db, cacheKey, payload, checkedAtMs) => {
   await db
     .prepare(
       `
-      INSERT INTO api_cache_entries (cache_key, payload_json, checked_at_ms)
+      INSERT INTO api2_cache_entries (cache_key, payload_json, checked_at_ms)
       VALUES (?, ?, ?)
-      ON CONFLICT(cache_key) DO UPDATE SET
-        payload_json = excluded.payload_json,
-        checked_at_ms = excluded.checked_at_ms
       `
     )
     .bind(cacheKey, JSON.stringify(payload || {}), checkedAtMs)

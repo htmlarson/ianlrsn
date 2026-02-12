@@ -53,7 +53,7 @@ const getCacheRecord = async (db, cacheKey) => {
     .prepare(
       `
       SELECT payload_json, checked_at_ms
-      FROM api_cache_entries
+      FROM api2_cache_latest
       WHERE cache_key = ?
       LIMIT 1
       `

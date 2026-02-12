@@ -110,11 +110,28 @@ CREATE INDEX IF NOT EXISTS idx_request_logs_cache_status ON request_logs(cache_s
 CREATE INDEX IF NOT EXISTS idx_request_logs_session_id ON request_logs(session_id);
 CREATE INDEX IF NOT EXISTS idx_request_logs_user_id ON request_logs(user_id);
 
-CREATE TABLE IF NOT EXISTS api_cache_entries (
-  cache_key TEXT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS api2_cache_entries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cache_key TEXT NOT NULL,
   payload_json TEXT NOT NULL,
   checked_at_ms INTEGER NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_api2_cache_entries_key_checked_at
+  ON api2_cache_entries(cache_key, checked_at_ms DESC, id DESC);
+
+CREATE VIEW IF NOT EXISTS api2_cache_latest AS
+SELECT
+  e.id,
+  e.cache_key,
+  e.payload_json,
+  e.checked_at_ms
+FROM api2_cache_entries e
+INNER JOIN (
+  SELECT cache_key, MAX(id) AS latest_id
+  FROM api2_cache_entries
+  GROUP BY cache_key
+) latest ON latest.latest_id = e.id;
 
 CREATE VIEW IF NOT EXISTS v_request_logs_enriched AS
 SELECT
@@ -230,4 +247,31 @@ ALTER TABLE request_logs ADD COLUMN user_id TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_request_logs_session_id ON request_logs(session_id);
 CREATE INDEX IF NOT EXISTS idx_request_logs_user_id ON request_logs(user_id);
+```
+
+To add the new parallel cache objects without touching existing `api_cache_*` tables/views, run:
+
+```sql
+CREATE TABLE IF NOT EXISTS api2_cache_entries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cache_key TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  checked_at_ms INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_api2_cache_entries_key_checked_at
+  ON api2_cache_entries(cache_key, checked_at_ms DESC, id DESC);
+
+CREATE VIEW IF NOT EXISTS api2_cache_latest AS
+SELECT
+  e.id,
+  e.cache_key,
+  e.payload_json,
+  e.checked_at_ms
+FROM api2_cache_entries e
+INNER JOIN (
+  SELECT cache_key, MAX(id) AS latest_id
+  FROM api2_cache_entries
+  GROUP BY cache_key
+) latest ON latest.latest_id = e.id;
 ```
