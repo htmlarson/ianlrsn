@@ -2,6 +2,8 @@ const TWITCH_CLIENT_ID = "7tiifmm8jdm1lfqrielkfho92fjzwb";
 const TWITCH_USERNAME = "ianlrsn";
 const CACHE_KEY = "twitch-live";
 const CACHE_TTL_MS = 60000;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const jsonResponse = (payload, status = 200) =>
   new Response(JSON.stringify(payload), {
@@ -39,6 +41,14 @@ const serializeHeaders = (headers) => {
     // Ignore serialization failures.
   }
   return out;
+};
+
+const isUuid = (value) => UUID_RE.test(String(value || ""));
+
+const getRequestIdentity = (request) => {
+  const sessionId = request.headers.get("x-session-id")?.trim() || null;
+  const userId = request.headers.get("x-user-id")?.trim() || null;
+  return { sessionId, userId };
 };
 
 const getCacheRecord = async (db, cacheKey) => {
@@ -83,6 +93,77 @@ const setCacheRecord = async (db, cacheKey, payload, checkedAtMs) => {
     .run();
 };
 
+const getValidatedSession = async (readDb, request) => {
+  const { sessionId, userId } = getRequestIdentity(request);
+
+  if (!sessionId) {
+    return { ok: false, sessionId: null, userId: null, errorCode: "missing_session_id" };
+  }
+
+  if (!isUuid(sessionId)) {
+    return {
+      ok: false,
+      sessionId,
+      userId: userId || null,
+      errorCode: "invalid_session_id_format",
+    };
+  }
+
+  if (userId && !isUuid(userId)) {
+    return {
+      ok: false,
+      sessionId,
+      userId,
+      errorCode: "invalid_user_id_format",
+    };
+  }
+
+  const row = await readDb
+    .prepare(
+      `
+      SELECT session_id, user_id, revoked_at
+      FROM client_sessions
+      WHERE session_id = ?
+      LIMIT 1
+      `
+    )
+    .bind(sessionId)
+    .first();
+
+  if (!row || row.revoked_at) {
+    return {
+      ok: false,
+      sessionId,
+      userId: userId || null,
+      errorCode: "unknown_or_revoked_session",
+    };
+  }
+
+  if (userId && userId !== row.user_id) {
+    return {
+      ok: false,
+      sessionId,
+      userId,
+      errorCode: "session_user_mismatch",
+    };
+  }
+
+  return { ok: true, sessionId: row.session_id, userId: row.user_id, errorCode: null };
+};
+
+const touchSession = async (db, sessionId) => {
+  await db
+    .prepare(
+      `
+      UPDATE client_sessions
+      SET last_seen_at = ?
+      WHERE session_id = ?
+      `
+    )
+    .bind(new Date().toISOString(), sessionId)
+    .run();
+};
+
 const logRequestToD1 = async ({
   db,
   request,
@@ -94,6 +175,8 @@ const logRequestToD1 = async ({
   stale,
   live,
   errorCode,
+  sessionId,
+  userId,
 }) => {
   const now = Date.now();
   const url = new URL(request.url);
@@ -105,6 +188,8 @@ const logRequestToD1 = async ({
         `
         INSERT INTO request_logs (
           created_at,
+          session_id,
+          user_id,
           request_method,
           request_url,
           request_path,
@@ -132,11 +217,13 @@ const logRequestToD1 = async ({
           response_json,
           error_code,
           duration_ms
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
       )
       .bind(
         new Date(now).toISOString(),
+        sessionId || null,
+        userId || null,
         request.method,
         request.url,
         url.pathname,
@@ -182,10 +269,44 @@ export async function onRequestGet({ request, env }) {
   let readDb;
   let cachedPayload = null;
   let cacheAgeMs;
+  let sessionId = null;
+  let userId = null;
 
   try {
     db = getDb(env);
     readDb = getReadDb(db);
+
+    const auth = await getValidatedSession(readDb, request);
+    sessionId = auth.sessionId;
+    userId = auth.userId;
+
+    if (!auth.ok) {
+      const payload = {
+        live: false,
+        checked_at: nowIso,
+        error: "invalid_session",
+        error_code: auth.errorCode,
+      };
+
+      await logRequestToD1({
+        db,
+        request,
+        startedAtMs,
+        status: 401,
+        responsePayload: payload,
+        cacheStatus: "unauthorized",
+        fromCache: false,
+        stale: false,
+        live: false,
+        errorCode: auth.errorCode,
+        sessionId,
+        userId,
+      });
+
+      return jsonResponse(payload, 401);
+    }
+
+    await touchSession(db, sessionId);
 
     if (!bypassCache) {
       const cacheRecord = await getCacheRecord(readDb, CACHE_KEY);
@@ -213,6 +334,8 @@ export async function onRequestGet({ request, env }) {
             stale: false,
             live: payload.live,
             errorCode: null,
+            sessionId,
+            userId,
           });
 
           return jsonResponse(payload);
@@ -258,6 +381,8 @@ export async function onRequestGet({ request, env }) {
       stale: false,
       live: false,
       errorCode: "missing_twitch_client_secret",
+      sessionId,
+      userId,
     });
 
     return jsonResponse(payload, 500);
@@ -325,6 +450,8 @@ export async function onRequestGet({ request, env }) {
       stale: false,
       live,
       errorCode: null,
+      sessionId,
+      userId,
     });
 
     return jsonResponse(responsePayload);
@@ -350,6 +477,8 @@ export async function onRequestGet({ request, env }) {
         stale: true,
         live: payload.live,
         errorCode: "twitch_fetch_failed",
+        sessionId,
+        userId,
       });
 
       return jsonResponse(payload);
@@ -372,6 +501,8 @@ export async function onRequestGet({ request, env }) {
       stale: false,
       live: false,
       errorCode: "twitch_fetch_failed",
+      sessionId,
+      userId,
     });
 
     return jsonResponse(payload, 502);
