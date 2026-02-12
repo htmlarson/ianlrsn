@@ -8,7 +8,8 @@ What's included:
 - Link tiles for Twitch, YouTube, Discord, TikTok, Instagram, and Nintendo friend code.
 - Cash App placeholder removed with HTML comments for easy re-add.
 - Cloudflare Pages Function at `/api/turnstile` that issues a server-assigned `session_id` and `user_id` (UUIDs).
-- Cloudflare Pages Function at `/api/twitch-live` that checks Twitch live status with a 60s D1 cache.
+- Cloudflare Worker cron job in `workers/twitch-live-cron` that fetches Twitch live status every minute and writes it to D1.
+- Cloudflare Pages Function at `/api/twitch-live` that reads current Twitch state from D1.
 - `/api/twitch-live` requires a valid `x-session-id` header that exists in `client_sessions`.
 - Every `/api/twitch-live` request is logged to D1 with `session_id`, `user_id`, full headers, full `request.cf`, cache/result metadata, response code/payload, and timing.
 
@@ -18,6 +19,8 @@ Files:
 - `icons/`
 - `functions/api/turnstile.js`
 - `functions/api/twitch-live.js`
+- `workers/twitch-live-cron/src/index.js`
+- `workers/twitch-live-cron/wrangler.jsonc`
 
 ## Identity Flow
 
@@ -35,9 +38,16 @@ If `/api/twitch-live` returns `401`, the client refreshes `session_id` via `/api
 
 ## Cloudflare Pages Setup
 
-- Add environment variable `TWITCH_CLIENT_SECRET` (matching the Twitch app ID in `functions/api/twitch-live.js`).
 - Add D1 binding `REQUEST_LOGS_DB`.
 - Run the D1 SQL below.
+
+## Cloudflare Worker Setup (`workers/twitch-live-cron`)
+
+- Add Worker secret `TWITCH_CLIENT_SECRET`.
+- Keep the D1 binding in `workers/twitch-live-cron/wrangler.jsonc` as:
+  - `binding`: `DB`
+  - `database_name`: `ianlrsn`
+  - `database_id`: `96bfb53d-dc1f-455e-b9f2-a60bcb6464b7`
 
 ### New Install SQL
 
