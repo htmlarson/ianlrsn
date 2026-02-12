@@ -194,6 +194,10 @@
 
       const twitchRow = document.querySelector("[data-twitch]");
       const twitchPlayer = twitchRow?.querySelector(".twitch-player");
+      const SESSION_ID_STORAGE_KEY = "ianlrsn_session_id";
+      const USER_ID_STORAGE_KEY = "ianlrsn_user_id";
+      const UUID_RE =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
       const CACHE_TTL_MS = 60000;
       const EARLY_CACHE_THRESHOLD_MS = 2000;
       const EXTRA_OFFSET_MIN_MS = 2000;
@@ -201,10 +205,67 @@
       let liveCheckTimer;
       let extraOffsetMs = 0;
       let extraOffsetApplied = false;
+      let activeSessionId = null;
+      let activeUserId = null;
       const params = new URLSearchParams(window.location.search);
       const testLive = params.get("test_live") === "1";
       const forceLive = params.get("force_live") === "1";
       if (forceLive && card) card.classList.add("live-mode");
+
+      const isUuid = (value) => UUID_RE.test(String(value || ""));
+
+      const clearSessionId = () => {
+        activeSessionId = null;
+        sessionStorage.removeItem(SESSION_ID_STORAGE_KEY);
+      };
+
+      const bootstrapIdentity = async () => {
+        const existingUserId = localStorage.getItem(USER_ID_STORAGE_KEY);
+        const body = {};
+        if (isUuid(existingUserId)) {
+          body.user_id = existingUserId;
+        }
+
+        const response = await fetch("/api/turnstile", {
+          method: "POST",
+          cache: "no-store",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!response.ok) {
+          throw new Error("turnstile bootstrap failed");
+        }
+
+        const data = await response.json();
+        if (!isUuid(data?.session_id) || !isUuid(data?.user_id)) {
+          throw new Error("turnstile returned invalid ids");
+        }
+
+        activeSessionId = data.session_id;
+        activeUserId = data.user_id;
+        sessionStorage.setItem(SESSION_ID_STORAGE_KEY, activeSessionId);
+        localStorage.setItem(USER_ID_STORAGE_KEY, activeUserId);
+        return { sessionId: activeSessionId, userId: activeUserId };
+      };
+
+      const ensureIdentity = async () => {
+        if (isUuid(activeSessionId) && isUuid(activeUserId)) {
+          return { sessionId: activeSessionId, userId: activeUserId };
+        }
+
+        const storedSessionId = sessionStorage.getItem(SESSION_ID_STORAGE_KEY);
+        const storedUserId = localStorage.getItem(USER_ID_STORAGE_KEY);
+        if (isUuid(storedSessionId) && isUuid(storedUserId)) {
+          activeSessionId = storedSessionId;
+          activeUserId = storedUserId;
+          return { sessionId: activeSessionId, userId: activeUserId };
+        }
+
+        return bootstrapIdentity();
+      };
 
       const ensureTwitchEmbed = () => {
         if (!twitchPlayer) return;
@@ -245,7 +306,27 @@
           return;
         }
         try {
-          const response = await fetch("/api/twitch-live", { cache: "no-store" });
+          let identity = await ensureIdentity();
+          let response = await fetch("/api/twitch-live", {
+            cache: "no-store",
+            headers: {
+              "x-session-id": identity.sessionId,
+              "x-user-id": identity.userId,
+            },
+          });
+
+          if (response.status === 401) {
+            clearSessionId();
+            identity = await ensureIdentity();
+            response = await fetch("/api/twitch-live", {
+              cache: "no-store",
+              headers: {
+                "x-session-id": identity.sessionId,
+                "x-user-id": identity.userId,
+              },
+            });
+          }
+
           if (!response.ok) throw new Error("status fetch failed");
           const data = await response.json();
           const isLive = Boolean(data?.live);
