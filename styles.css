@@ -54,9 +54,50 @@ body {
   overflow: hidden;
 }
 
+.share-button {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 40px;
+  height: 40px;
+  border: 2px solid rgba(5, 5, 5, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.45);
+  color: #000000;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+  z-index: 2;
+}
+
+.share-button svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.share-button:hover,
+.share-button:focus-visible {
+  transform: translateY(-1px) scale(1.05);
+  background: rgba(255, 255, 255, 0.68);
+  border-color: rgba(5, 5, 5, 0.42);
+}
+
+.share-button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
 .card.live-mode {
   background: transparent;
   transition: none;
+}
+
+.card.live-mode .share-button {
+  color: var(--live-text-color, #ffffff);
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.45);
 }
 
 .hero {

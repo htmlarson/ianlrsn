@@ -21,6 +21,11 @@
     <div class="stage" aria-hidden="true"></div>
     <main class="page">
       <section class="card">
+        <button class="share-button" type="button" aria-label="Share this page">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M17 5a3 3 0 1 0-2.83 4h-.01l-4.42 2.45a3 3 0 1 0 0 1.1l4.42 2.45h.01A3 3 0 1 0 15 13a3 3 0 0 0-.83.12l-4.42-2.46a3 3 0 0 0 0-1.32l4.42-2.46A3 3 0 0 0 17 8a3 3 0 0 0 0-3" />
+          </svg>
+        </button>
         <header class="hero">
           <div class="avatar" role="img" aria-label="Ian">
             <div class="avatar-media" aria-hidden="true"></div>
@@ -110,6 +115,7 @@
       const CUT_FLASH_MS = 110;
       const stage = document.querySelector(".stage");
       const card = document.querySelector(".card");
+      const shareButton = document.querySelector(".share-button");
       const avatarMedia = document.querySelector(".avatar-media");
       const avatarWord = document.querySelector(".avatar-word");
       let index = 0;
@@ -212,6 +218,28 @@
       const testLive = params.get("test_live") === "1";
       const forceLive = params.get("force_live") === "1";
       if (forceLive && card) card.classList.add("live-mode");
+
+      const getShareUrl = () => window.location.href.split("#")[0];
+
+      const handleShareClick = async () => {
+        const shareUrl = getShareUrl();
+        if (!shareUrl) return;
+        try {
+          await navigator.share({ title: document.title || "ianlrsn", url: shareUrl });
+        } catch (error) {
+          // Ignore cancel/no-op outcomes.
+          if (error && error.name === "AbortError") return;
+        }
+      };
+
+      if (shareButton) {
+        if (typeof navigator.share !== "function") {
+          shareButton.hidden = true;
+        }
+        shareButton.addEventListener("click", () => {
+          void handleShareClick();
+        });
+      }
 
       const isUuid = (value) => UUID_RE.test(String(value || ""));
       const isHttpUrl = (value) => {
